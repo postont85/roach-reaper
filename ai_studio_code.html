@@ -1,0 +1,1851 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>The Roach Reaper: House Cleaner</title>
+<style>
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  body {
+    background-color: #0b0e14;
+    color: #fff;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    overflow: hidden;
+  }
+
+  #game-container {
+    position: relative;
+    width: 960px;
+    height: 600px;
+    box-shadow: 0 12px 50px rgba(0,0,0,0.85), 0 0 0 3px #2f3542;
+    border-radius: 10px;
+    overflow: hidden;
+    background: #000;
+  }
+
+  canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+    cursor: none; /* Custom in-game reticle */
+  }
+
+  /* Overlay UI Screens */
+  .overlay-screen {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: rgba(10, 14, 23, 0.94);
+    backdrop-filter: blur(5px);
+    z-index: 50;
+    text-align: center;
+    padding: 30px;
+    transition: opacity 0.25s ease;
+  }
+
+  .hidden {
+    display: none !important;
+  }
+
+  .title-logo {
+    font-size: 56px;
+    font-weight: 900;
+    letter-spacing: 2px;
+    color: #2ed573;
+    text-shadow: 0 0 20px rgba(46, 213, 115, 0.6), 4px 4px 0 #10ac84, 6px 6px 0 #0f2027;
+    margin-bottom: 4px;
+    text-transform: uppercase;
+  }
+
+  .title-sub {
+    font-size: 22px;
+    font-weight: 800;
+    color: #ffa502;
+    letter-spacing: 5px;
+    margin-bottom: 24px;
+    text-shadow: 2px 2px 0 #1e272e;
+  }
+
+  .instructions-box {
+    background: rgba(255, 255, 255, 0.07);
+    border: 2px solid rgba(255, 255, 255, 0.16);
+    border-radius: 12px;
+    padding: 16px 26px;
+    max-width: 550px;
+    margin-bottom: 25px;
+    text-align: left;
+    font-size: 15px;
+    line-height: 1.6;
+    color: #e2e8f0;
+  }
+
+  .instructions-box ul {
+    list-style: none;
+    margin-top: 8px;
+  }
+
+  .instructions-box li {
+    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+  }
+
+  .instructions-box li span.key {
+    background: #ff4757;
+    color: #fff;
+    padding: 2px 8px;
+    border-radius: 5px;
+    font-weight: bold;
+    font-size: 13px;
+    margin-right: 12px;
+    min-width: 110px;
+    display: inline-block;
+    text-align: center;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+  }
+
+  .btn {
+    background: linear-gradient(135deg, #10ac84, #2ed573);
+    color: #0b1f1c;
+    font-size: 22px;
+    font-weight: 900;
+    padding: 14px 45px;
+    border: none;
+    border-radius: 50px;
+    cursor: pointer;
+    box-shadow: 0 6px 20px rgba(46, 213, 115, 0.4), inset 0 2px 0 rgba(255,255,255,0.4);
+    transition: transform 0.15s, box-shadow 0.15s, filter 0.15s;
+    letter-spacing: 1.5px;
+  }
+
+  .btn:hover {
+    transform: translateY(-3px) scale(1.02);
+    box-shadow: 0 10px 25px rgba(46, 213, 115, 0.6);
+    filter: brightness(1.1);
+  }
+
+  .btn:active {
+    transform: translateY(1px);
+  }
+
+  /* Audio & Controls bar */
+  #header-bar {
+    position: absolute;
+    top: 10px;
+    right: 15px;
+    z-index: 30;
+    display: flex;
+    gap: 10px;
+  }
+
+  .icon-btn {
+    background: rgba(0, 0, 0, 0.65);
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    color: #fff;
+    padding: 6px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 700;
+    font-size: 13px;
+    transition: background 0.2s;
+  }
+
+  .icon-btn:hover {
+    background: rgba(255, 255, 255, 0.2);
+  }
+
+  #mobile-warning {
+    display: none;
+    background: #ff4757;
+    color: white;
+    padding: 10px 20px;
+    border-radius: 6px;
+    margin-top: 15px;
+    font-size: 14px;
+    text-align: center;
+  }
+
+  @media (max-width: 900px) {
+    #mobile-warning { display: block; }
+    #game-container { width: 95vw; height: 59.375vw; }
+  }
+</style>
+</head>
+<body>
+
+<div id="game-container">
+  <!-- Top Right Utility Buttons -->
+  <div id="header-bar">
+    <button id="sound-btn" class="icon-btn">🔊 SOUND: ON</button>
+    <button id="pause-btn" class="icon-btn">⏸️ PAUSE</button>
+  </div>
+
+  <!-- Canvas Game Viewport -->
+  <canvas id="gameCanvas" width="960" height="600"></canvas>
+
+  <!-- Start Screen -->
+  <div id="start-screen" class="overlay-screen">
+    <div class="title-logo">THE ROACH REAPER</div>
+    <div class="title-sub">HOUSE CLEANER</div>
+
+    <div class="instructions-box">
+      <strong>REAPER BRIEFING:</strong>
+      <ul>
+        <li><span class="key">MOUSE MOVE</span> Aim Super Soaker Blaster Rifle horizontally</li>
+        <li><span class="key">LEFT CLICK</span> Fire High-Pressure Toxic Bug Solvent (1 Round)</li>
+        <li><span class="key">KEY [ R ]</span> Pump & Reload 20-Round Super Blaster Tank</li>
+        <li><span class="key">MISSION</span> Clear all 8 rooms and harvest 1,000 Points (100 Roaches)!</li>
+      </ul>
+    </div>
+
+    <button id="play-btn" class="btn">REAP THE ROACHES</button>
+  </div>
+
+  <!-- Victory Screen -->
+  <div id="victory-screen" class="overlay-screen hidden">
+    <div class="title-logo" style="color: #ffd166; text-shadow: 0 0 20px rgba(255,209,102,0.6);">CONGRATULATIONS!</div>
+    <div class="title-sub" style="color: #2ed573;">THE ENTIRE RESIDENCE HAS BEEN DECONTAMINATED!</div>
+
+    <div class="instructions-box" style="text-align: center; font-size: 17px;">
+      <p style="margin-bottom: 8px;">⭐ Final Score: <strong style="color:#ffd166;">1,000 POINTS</strong></p>
+      <p style="margin-bottom: 8px;">🪳 Cockroaches Reaped: <strong style="color:#2ed573;">100 / 100</strong></p>
+      <p>🏡 Rooms Purged: <strong style="color:#70a1ff;">8 ROOMS (Kitchen to Garage)</strong></p>
+    </div>
+
+    <button id="restart-btn" class="btn">PLAY AGAIN</button>
+  </div>
+
+  <!-- Pause Overlay -->
+  <div id="pause-screen" class="overlay-screen hidden">
+    <h1 style="font-size: 48px; color: #ffd166; margin-bottom: 20px;">GAME PAUSED</h1>
+    <button id="resume-btn" class="btn" style="font-size: 18px; padding: 10px 30px;">RESUME</button>
+  </div>
+</div>
+
+<div id="mobile-warning">
+  ⚠️ Optimized for Desktop Browsers using Mouse and Keyboard!
+</div>
+
+<script>
+/**
+ * THE ROACH REAPER: HOUSE CLEANER (Super Soaker Blaster Edition)
+ */
+
+// --- AUDIO SYNTHESIS ENGINE ---
+class SoundManager {
+  constructor() {
+    this.ctx = null;
+    this.muted = false;
+    this.bgmPlaying = false;
+    this.nextNoteTime = 0;
+    this.bgmStep = 0;
+  }
+
+  init() {
+    if (!this.ctx) {
+      const AudioContext = window.AudioContext || window.webkitAudioContext;
+      this.ctx = new AudioContext();
+    }
+    if (this.ctx.state === 'suspended') {
+      this.ctx.resume();
+    }
+  }
+
+  toggleMute() {
+    this.muted = !this.muted;
+    return !this.muted;
+  }
+
+  playShoot() {
+    if (this.muted || !this.ctx) return;
+    const now = this.ctx.currentTime;
+
+    // Super Soaker high-pressure squirt blast (Noise + resonant hydro whistle)
+    const bufferSize = this.ctx.sampleRate * 0.2;
+    const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) {
+      data[i] = Math.random() * 2 - 1;
+    }
+
+    const noise = this.ctx.createBufferSource();
+    noise.buffer = buffer;
+
+    const filter = this.ctx.createBiquadFilter();
+    filter.type = 'bandpass';
+    filter.frequency.setValueAtTime(2200, now);
+    filter.frequency.exponentialRampToValueAtTime(450, now + 0.18);
+    filter.Q.value = 5.0;
+
+    const gain = this.ctx.createGain();
+    gain.gain.setValueAtTime(0.65, now);
+    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.2);
+
+    noise.connect(filter);
+    filter.connect(gain);
+    gain.connect(this.ctx.destination);
+
+    noise.start(now);
+  }
+
+  playEmpty() {
+    if (this.muted || !this.ctx) return;
+    const now = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(220, now);
+    osc.frequency.exponentialRampToValueAtTime(80, now + 0.07);
+
+    gain.gain.setValueAtTime(0.3, now);
+    gain.gain.linearRampToValueAtTime(0, now + 0.07);
+
+    osc.connect(gain);
+    gain.connect(this.ctx.destination);
+    osc.start(now);
+    osc.stop(now + 0.07);
+  }
+
+  playReload() {
+    if (this.muted || !this.ctx) return;
+    const now = this.ctx.currentTime;
+
+    // Heavy mechanical super soaker pump-slide squelch & pressure latch
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(320, now);
+    osc.frequency.linearRampToValueAtTime(750, now + 0.3);
+    osc.frequency.linearRampToValueAtTime(1200, now + 0.6);
+
+    gain.gain.setValueAtTime(0.25, now);
+    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.7);
+
+    osc.connect(gain);
+    gain.connect(this.ctx.destination);
+    osc.start(now);
+    osc.stop(now + 0.7);
+  }
+
+  playHit() {
+    if (this.muted || !this.ctx) return;
+    const now = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(380, now);
+    osc.frequency.exponentialRampToValueAtTime(1400, now + 0.09);
+    osc.frequency.exponentialRampToValueAtTime(180, now + 0.19);
+
+    gain.gain.setValueAtTime(0.32, now);
+    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.19);
+
+    osc.connect(gain);
+    gain.connect(this.ctx.destination);
+    osc.start(now);
+    osc.stop(now + 0.19);
+  }
+
+  playRoomClear() {
+    if (this.muted || !this.ctx) return;
+    const notes = [261.63, 329.63, 392.00, 523.25];
+    notes.forEach((freq, idx) => {
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      const now = this.ctx.currentTime + idx * 0.1;
+      osc.type = 'triangle';
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0.25, now);
+      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.25);
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.25);
+    });
+  }
+
+  playVictory() {
+    if (this.muted || !this.ctx) return;
+    const chords = [
+      [261.63, 329.63, 392.0],
+      [293.66, 369.99, 440.0],
+      [329.63, 415.30, 493.88],
+      [523.25, 659.25, 783.99]
+    ];
+    chords.forEach((chord, i) => {
+      const t = this.ctx.currentTime + i * 0.28;
+      chord.forEach(freq => {
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.value = freq;
+        gain.gain.setValueAtTime(0.18, t);
+        gain.gain.exponentialRampToValueAtTime(0.01, t + 0.5);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start(t);
+        osc.stop(t + 0.5);
+      });
+    });
+  }
+
+  updateBGM() {
+    if (this.muted || !this.ctx || !this.bgmPlaying) return;
+    const now = this.ctx.currentTime;
+    if (now >= this.nextNoteTime) {
+      const bassNotes = [110, 110, 130.81, 146.83, 110, 110, 164.81, 146.83];
+      const melodyNotes = [440, 0, 523.25, 587.33, 440, 659.25, 587.33, 523.25];
+      const noteFreq = bassNotes[this.bgmStep % bassNotes.length];
+      const leadFreq = melodyNotes[this.bgmStep % melodyNotes.length];
+
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(noteFreq, now);
+      gain.gain.setValueAtTime(0.08, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.17);
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.18);
+
+      if (leadFreq > 0) {
+        const leadOsc = this.ctx.createOscillator();
+        const leadGain = this.ctx.createGain();
+        leadOsc.type = 'triangle';
+        leadOsc.frequency.setValueAtTime(leadFreq, now);
+        leadGain.gain.setValueAtTime(0.04, now);
+        leadGain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+        leadOsc.connect(leadGain);
+        leadGain.connect(this.ctx.destination);
+        leadOsc.start(now);
+        leadOsc.stop(now + 0.16);
+      }
+
+      this.bgmStep++;
+      this.nextNoteTime = now + 0.22;
+    }
+  }
+
+  startBGM() {
+    this.bgmPlaying = true;
+    if (this.ctx) this.nextNoteTime = this.ctx.currentTime + 0.1;
+  }
+}
+
+// --- GAME STATE & CONSTANTS ---
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const sound = new SoundManager();
+
+const WIDTH = 960;
+const HEIGHT = 600;
+const MAX_AMMO = 20;
+const VICTORY_POINTS = 1000;
+const POINTS_PER_ROACH = 10;
+
+const ROOMS = [
+  { id: 'kitchen', name: 'Kitchen', targetKills: 12, speedMult: 1.0, maxConcurrent: 4 },
+  { id: 'living_room', name: 'Living Room', targetKills: 12, speedMult: 1.15, maxConcurrent: 5 },
+  { id: 'bathroom', name: 'Bathroom', targetKills: 12, speedMult: 1.3, maxConcurrent: 5 },
+  { id: 'bedroom', name: 'Bedroom', targetKills: 12, speedMult: 1.45, maxConcurrent: 6 },
+  { id: 'dining_room', name: 'Dining Room', targetKills: 13, speedMult: 1.6, maxConcurrent: 6 },
+  { id: 'laundry_room', name: 'Laundry Room', targetKills: 13, speedMult: 1.75, maxConcurrent: 7 },
+  { id: 'basement', name: 'Basement', targetKills: 14, speedMult: 1.9, maxConcurrent: 7 },
+  { id: 'garage', name: 'Garage', targetKills: 12, speedMult: 2.1, maxConcurrent: 8 }
+];
+
+let gameState = {
+  score: 0,
+  kills: 0,
+  ammo: MAX_AMMO,
+  roomIndex: 0,
+  roomKills: 0,
+  reloading: false,
+  reloadTimer: 0,
+  reloadDuration: 1.1,
+  isPaused: false,
+  isPlaying: false,
+  isVictory: false,
+
+  mouseX: WIDTH / 2,
+  mouseY: HEIGHT / 2,
+  gunX: WIDTH / 2,
+  gunVelocityX: 0,
+  liquidSlosh: 0,
+
+  recoilOffset: 0,
+  sprayFlashTimer: 0,
+  roomBannerTimer: 0,
+  roomBannerText: '',
+  roomBannerSub: ''
+};
+
+let roaches = [];
+let particles = [];
+let floatingTexts = [];
+
+// --- HIGH DETAIL ROOM RENDERERS ---
+const RoomRenderers = {
+  // 1. KITCHEN
+  kitchen: function(c) {
+    // Ceiling & Upper Wall
+    c.fillStyle = '#cfd9df';
+    c.fillRect(0, 0, WIDTH, 380);
+
+    // Subway Wall Tiles with realistic glossy bevels & grout
+    for (let y = 30; y < 290; y += 26) {
+      const row = Math.floor(y / 26);
+      const xOffset = (row % 2 === 0) ? 0 : 32;
+      for (let x = -32 + xOffset; x < WIDTH + 32; x += 64) {
+        c.fillStyle = '#f5f6fa';
+        c.fillRect(x + 1, y + 1, 62, 24);
+        c.fillStyle = 'rgba(255,255,255,0.7)';
+        c.fillRect(x + 2, y + 2, 60, 4);
+        c.fillStyle = '#dcdde1';
+        c.fillRect(x + 2, y + 21, 60, 3);
+      }
+    }
+    // Grout lines
+    c.strokeStyle = '#718093';
+    c.lineWidth = 1;
+    for (let y = 30; y <= 290; y += 26) {
+      c.beginPath(); c.moveTo(0, y); c.lineTo(WIDTH, y); c.stroke();
+    }
+
+    // Upper Solid Oak Cabinets with Beveled Panels
+    const drawCabinet = (x, y, w, h) => {
+      c.fillStyle = '#78350f';
+      c.fillRect(x, y, w, h);
+      c.fillStyle = '#92400e';
+      c.fillRect(x + 6, y + 6, w - 12, h - 12);
+      c.fillStyle = '#b45309';
+      c.fillRect(x + 10, y + 10, w - 20, h - 20);
+      // Brass handle
+      c.fillStyle = '#f59e0b';
+      c.beginPath(); c.roundRect(x + w - 16, y + h/2 - 15, 6, 30, 3); c.fill();
+    };
+    drawCabinet(40, 15, 110, 120);
+    drawCabinet(155, 15, 110, 120);
+    drawCabinet(695, 15, 110, 120);
+    drawCabinet(810, 15, 110, 120);
+
+    // Stainless Steel Double-Door Refrigerator
+    const fridgeGrad = c.createLinearGradient(350, 0, 520, 0);
+    fridgeGrad.addColorStop(0, '#718093');
+    fridgeGrad.addColorStop(0.2, '#dcdde1');
+    fridgeGrad.addColorStop(0.5, '#f5f6fa');
+    fridgeGrad.addColorStop(0.8, '#dcdde1');
+    fridgeGrad.addColorStop(1, '#576574');
+    c.fillStyle = fridgeGrad;
+    c.fillRect(350, 40, 180, 280);
+
+    // Fridge split & long chrome handles
+    c.fillStyle = '#2f3542';
+    c.fillRect(350, 155, 180, 4);
+    c.fillRect(440, 40, 2, 280);
+    c.fillStyle = '#f1f2f6';
+    c.fillRect(426, 85, 8, 60);
+    c.fillRect(446, 85, 8, 60);
+    c.fillRect(426, 175, 8, 70);
+    c.fillRect(446, 175, 8, 70);
+
+    // Colorful fridge magnets & photos
+    c.fillStyle = '#ff4757'; c.beginPath(); c.arc(385, 80, 9, 0, Math.PI*2); c.fill();
+    c.fillStyle = '#ffa502'; c.fillRect(485, 95, 26, 34);
+    c.fillStyle = '#2ed573'; c.beginPath(); c.arc(390, 125, 11, 0, Math.PI*2); c.fill();
+    c.fillStyle = '#1e90ff'; c.fillRect(470, 180, 32, 22);
+
+    // Polished Black Granite Countertop with Specular Sheen
+    c.fillStyle = '#1e272e';
+    c.fillRect(0, 290, WIDTH, 36);
+    c.fillStyle = 'rgba(255,255,255,0.45)';
+    c.fillRect(0, 290, WIDTH, 3); // High-gloss highlight edge
+
+    // Stainless Steel Kitchen Sink & Goose-neck Chrome Faucet
+    c.fillStyle = '#57606f';
+    c.beginPath(); c.roundRect(140, 292, 120, 30, [4, 4, 12, 12]); c.fill();
+    c.strokeStyle = '#a4b0be'; c.lineWidth = 5;
+    c.beginPath(); c.moveTo(200, 292); c.lineTo(200, 255); c.arc(190, 255, 10, 0, Math.PI, true); c.lineTo(180, 270); c.stroke();
+
+    // Digital Microwave Oven with Interior Light
+    c.fillStyle = '#2f3542';
+    c.fillRect(710, 215, 160, 75);
+    c.fillStyle = '#ffeaa7'; // Glowing window
+    c.fillRect(725, 225, 95, 55);
+    c.fillStyle = '#2ed573';
+    c.font = 'bold 12px monospace';
+    c.fillText('12:00', 830, 240);
+
+    // Lower Counter Base Cabinets
+    c.fillStyle = '#576574';
+    c.fillRect(0, 326, WIDTH, 60);
+
+    // Checkered Ceramic Floor with perspective depth
+    for (let y = 386; y < HEIGHT; y += 32) {
+      const row = Math.floor((y - 386) / 32);
+      for (let x = 0; x < WIDTH; x += 48) {
+        c.fillStyle = ((Math.floor(x / 48) + row) % 2 === 0) ? '#f1f2f6' : '#2f3542';
+        c.fillRect(x, y, 48, 32);
+        c.fillStyle = 'rgba(0,0,0,0.15)';
+        c.strokeRect(x, y, 48, 32);
+      }
+    }
+  },
+
+  // 2. LIVING ROOM
+  living_room: function(c) {
+    // Striped Wallpaper with Warm Tone
+    c.fillStyle = '#f5ecd7';
+    c.fillRect(0, 0, WIDTH, 380);
+    c.fillStyle = '#e4d2b2';
+    for (let x = 0; x < WIDTH; x += 40) {
+      c.fillRect(x, 0, 20, 380);
+    }
+
+    // Crown Molding at Ceiling
+    c.fillStyle = '#f8f9fa';
+    c.fillRect(0, 0, WIDTH, 12);
+    c.fillStyle = 'rgba(0,0,0,0.1)';
+    c.fillRect(0, 12, WIDTH, 4);
+
+    // Landscape Painting with Gilded Ornate Gold Frame
+    c.fillStyle = '#b7791f';
+    c.fillRect(160, 45, 180, 120);
+    c.fillStyle = '#d69e2e';
+    c.fillRect(166, 51, 168, 108);
+    // Scenic Canvas (Sunset Mountains)
+    const artGrad = c.createLinearGradient(170, 55, 170, 155);
+    artGrad.addColorStop(0, '#f687b3');
+    artGrad.addColorStop(0.5, '#fbd38d');
+    artGrad.addColorStop(1, '#4fd1c5');
+    c.fillStyle = artGrad;
+    c.fillRect(172, 57, 156, 96);
+    c.fillStyle = '#4a5568';
+    c.beginPath(); c.moveTo(172, 153); c.lineTo(220, 95); c.lineTo(270, 153); c.fill();
+    c.beginPath(); c.moveTo(240, 153); c.lineTo(290, 110); c.lineTo(328, 153); c.fill();
+
+    // Wall Sconce Clock
+    c.fillStyle = '#ffffff'; c.beginPath(); c.arc(500, 75, 30, 0, Math.PI*2); c.fill();
+    c.strokeStyle = '#2d3748'; c.lineWidth = 4; c.stroke();
+    c.fillStyle = '#2d3748';
+    c.beginPath(); c.moveTo(500, 75); c.lineTo(500, 56); c.stroke();
+    c.beginPath(); c.moveTo(500, 75); c.lineTo(518, 75); c.stroke();
+
+    // Large Bay Window with Outside Day Sky & Flowing Curtains
+    c.fillStyle = '#63b3ed';
+    c.fillRect(660, 40, 230, 170);
+    // Fluffy cloud in window
+    c.fillStyle = '#ffffff';
+    c.beginPath(); c.arc(730, 90, 16, 0, Math.PI*2); c.arc(750, 85, 20, 0, Math.PI*2); c.arc(770, 90, 16, 0, Math.PI*2); c.fill();
+    // Window mullions
+    c.strokeStyle = '#ffffff'; c.lineWidth = 6;
+    c.strokeRect(660, 40, 230, 170);
+    c.beginPath(); c.moveTo(775, 40); c.lineTo(775, 210); c.moveTo(660, 125); c.lineTo(890, 125); c.stroke();
+    // Deep Red Drape Curtains
+    c.fillStyle = '#9b2c2c';
+    c.fillRect(645, 30, 32, 195);
+    c.fillRect(875, 30, 32, 195);
+
+    // Potted Fiddle-Leaf Fig / Monstera Plant
+    c.fillStyle = '#dd6b20'; // Terracotta Pot
+    c.beginPath(); c.moveTo(90, 370); c.lineTo(75, 305); c.lineTo(135, 305); c.lineTo(120, 370); c.closePath(); c.fill();
+    c.fillStyle = '#276749';
+    c.beginPath(); c.ellipse(105, 275, 28, 14, -0.4, 0, Math.PI*2); c.fill();
+    c.beginPath(); c.ellipse(80, 255, 30, 16, -0.9, 0, Math.PI*2); c.fill();
+    c.beginPath(); c.ellipse(130, 250, 30, 16, 0.7, 0, Math.PI*2); c.fill();
+
+    // Plush Velvet Red Tufted Sofa
+    c.fillStyle = '#742a2a'; // Sofa back shadow
+    c.roundRect(190, 215, 450, 150, 20); c.fill();
+    c.fillStyle = '#9b2c2c'; // Main sofa body
+    c.roundRect(195, 220, 440, 140, 18); c.fill();
+    // Armrests
+    c.fillStyle = '#c53030';
+    c.roundRect(180, 240, 45, 110, 16); c.fill();
+    c.roundRect(605, 240, 45, 110, 16); c.fill();
+    // Cushions
+    c.fillStyle = '#e53e3e';
+    c.roundRect(230, 275, 185, 75, 12); c.fill();
+    c.roundRect(425, 275, 185, 75, 12); c.fill();
+    // Gold Accent Throw Pillows
+    c.fillStyle = '#ecc94b';
+    c.beginPath(); c.roundRect(235, 245, 45, 45, 8); c.fill();
+    c.beginPath(); c.roundRect(550, 245, 45, 45, 8); c.fill();
+
+    // Polished Hardwood Oak Floor with Plank Seams
+    c.fillStyle = '#d69e2e';
+    c.fillRect(0, 370, WIDTH, HEIGHT - 370);
+    c.strokeStyle = '#975a16'; c.lineWidth = 1.8;
+    for (let y = 370; y < HEIGHT; y += 38) {
+      c.beginPath(); c.moveTo(0, y); c.lineTo(WIDTH, y); c.stroke();
+    }
+  },
+
+  // 3. BATHROOM
+  bathroom: function(c) {
+    // Turquoise & White Wall Tiles with realistic glossy grout
+    c.fillStyle = '#00a8a8';
+    c.fillRect(0, 0, WIDTH, 380);
+    c.strokeStyle = 'rgba(255,255,255,0.4)'; c.lineWidth = 1.2;
+    for (let y = 0; y < 380; y += 22) {
+      c.beginPath(); c.moveTo(0, y); c.lineTo(WIDTH, y); c.stroke();
+      for (let x = 0; x < WIDTH; x += 22) {
+        c.beginPath(); c.moveTo(x, y); c.lineTo(x, y + 22); c.stroke();
+      }
+    }
+
+    // Chrome Heated Towel Rack with hanging towels
+    c.strokeStyle = '#cbd5e0'; c.lineWidth = 4;
+    c.strokeRect(100, 70, 70, 140);
+    c.beginPath(); c.moveTo(100, 110); c.lineTo(170, 110); c.moveTo(100, 150); c.lineTo(170, 150); c.stroke();
+    c.fillStyle = '#fc8181'; c.fillRect(110, 115, 24, 60);
+    c.fillStyle = '#63b3ed'; c.fillRect(138, 155, 24, 50);
+
+    // Large Vanity Mirror with LED Edge Backlight
+    c.fillStyle = 'rgba(255, 255, 255, 0.9)';
+    c.fillRect(355, 35, 250, 170);
+    const mirrorGrad = c.createLinearGradient(360, 40, 600, 200);
+    mirrorGrad.addColorStop(0, '#ebf8ff');
+    mirrorGrad.addColorStop(0.5, '#bee3f8');
+    mirrorGrad.addColorStop(1, '#90cdf4');
+    c.fillStyle = mirrorGrad;
+    c.fillRect(360, 40, 240, 160);
+    // Diagonal glass sheen
+    c.fillStyle = 'rgba(255,255,255,0.35)';
+    c.beginPath(); c.moveTo(370, 40); c.lineTo(440, 40); c.lineTo(390, 200); c.lineTo(370, 200); c.fill();
+
+    // Ceramic Vanity Countertop & Under-Mount Sink
+    c.fillStyle = '#f7fafc';
+    c.beginPath(); c.roundRect(340, 210, 280, 70, 8); c.fill();
+    c.fillStyle = '#edf2f7';
+    c.beginPath(); c.roundRect(390, 220, 180, 50, 20); c.fill();
+    // Modern Gooseneck Chrome Faucet
+    c.strokeStyle = '#a0aec0'; c.lineWidth = 6;
+    c.beginPath(); c.moveTo(480, 220); c.lineTo(480, 185); c.arc(470, 185, 10, 0, Math.PI, true); c.lineTo(460, 198); c.stroke();
+
+    // Freestanding Clawfoot Bathtub
+    c.fillStyle = '#e2e8f0';
+    c.beginPath(); c.roundRect(50, 200, 250, 140, [10, 10, 45, 45]); c.fill();
+    c.fillStyle = '#4fd1c5'; // Soapy water
+    c.fillRect(65, 220, 220, 65);
+    // Suds bubbles
+    c.fillStyle = 'rgba(255,255,255,0.85)';
+    c.beginPath(); c.arc(120, 220, 12, 0, Math.PI*2); c.arc(140, 218, 16, 0, Math.PI*2); c.arc(165, 222, 14, 0, Math.PI*2); c.fill();
+    // Brass claw feet
+    c.fillStyle = '#d69e2e';
+    c.fillRect(70, 335, 14, 18);
+    c.fillRect(265, 335, 14, 18);
+
+    // Mosaic Floor Tile with Pattern
+    c.fillStyle = '#234e52';
+    c.fillRect(0, 365, WIDTH, HEIGHT - 365);
+    // Fluffy Bath Rug with Fringe
+    c.fillStyle = '#feb2b2';
+    c.beginPath(); c.roundRect(380, 420, 200, 80, 18); c.fill();
+  },
+
+  // 4. BEDROOM
+  bedroom: function(c) {
+    // Deep Twilight Blue Wall
+    c.fillStyle = '#1a202c';
+    c.fillRect(0, 0, WIDTH, 380);
+
+    // Wall Art Posters
+    c.fillStyle = '#ed8936';
+    c.fillRect(110, 60, 130, 160);
+    c.fillStyle = '#e53e3e';
+    c.beginPath(); c.arc(175, 125, 38, 0, Math.PI*2); c.fill();
+    c.fillStyle = '#fff';
+    c.font = 'bold 18px sans-serif';
+    c.fillText('REAP', 150, 185);
+
+    // Large Bedroom Window with Moon & Stars
+    c.fillStyle = '#0f172a';
+    c.fillRect(680, 40, 200, 170);
+    c.fillStyle = '#fef08a';
+    c.beginPath(); c.arc(740, 95, 28, 0, Math.PI*2); c.fill();
+    c.fillStyle = '#0f172a'; // Moon crescent cutout
+    c.beginPath(); c.arc(750, 90, 24, 0, Math.PI*2); c.fill();
+    // Flowing Purple Curtains
+    c.fillStyle = '#7c3aed';
+    c.fillRect(660, 25, 35, 195);
+    c.fillRect(865, 25, 35, 195);
+
+    // Wooden Nightstand with Lamp
+    c.fillStyle = '#78350f';
+    c.fillRect(200, 240, 75, 120);
+    c.fillStyle = '#fbbf24'; // Brass lamp base
+    c.fillRect(232, 205, 10, 35);
+    c.fillStyle = '#fef08a'; // Lamp shade
+    c.beginPath(); c.moveTo(215, 205); c.lineTo(260, 205); c.lineTo(250, 170); c.lineTo(225, 170); c.closePath(); c.fill();
+
+    // King Size Bed with Tufted Headboard
+    c.fillStyle = '#475569';
+    c.roundRect(280, 170, 400, 85, 14); c.fill();
+    // Mattress & Bed Sheets
+    c.fillStyle = '#f8fafc';
+    c.fillRect(300, 230, 360, 130);
+    // Teal Duvet with Folds
+    c.fillStyle = '#0d9488';
+    c.beginPath(); c.roundRect(300, 265, 360, 95, [0, 0, 12, 12]); c.fill();
+    // Plump Pillows
+    c.fillStyle = '#ffffff';
+    c.beginPath(); c.roundRect(325, 225, 130, 42, 10); c.fill();
+    c.beginPath(); c.roundRect(495, 225, 130, 42, 10); c.fill();
+
+    // Dark Hardwood Flooring & Circular Plush Rug
+    c.fillStyle = '#334155';
+    c.fillRect(0, 360, WIDTH, HEIGHT - 360);
+    c.fillStyle = '#4f46e5';
+    c.beginPath(); c.ellipse(WIDTH/2, 470, 310, 75, 0, 0, Math.PI*2); c.fill();
+  },
+
+  // 5. DINING ROOM
+  dining_room: function(c) {
+    // Elegant Burgundy Wall
+    c.fillStyle = '#4c0519';
+    c.fillRect(0, 0, WIDTH, 380);
+
+    // Classical Wainscoting with Raised Wood Moldings
+    c.fillStyle = '#881337';
+    c.fillRect(0, 240, WIDTH, 140);
+    c.strokeStyle = '#be123c'; c.lineWidth = 4;
+    for (let x = 30; x < WIDTH; x += 115) {
+      c.strokeRect(x, 255, 85, 110);
+    }
+
+    // Gilded Crystal Chandelier
+    c.strokeStyle = '#f59e0b'; c.lineWidth = 3;
+    c.beginPath(); c.moveTo(WIDTH/2, 0); c.lineTo(WIDTH/2, 75); c.stroke();
+    c.fillStyle = '#fbbf24';
+    c.beginPath(); c.arc(WIDTH/2, 80, 45, 0, Math.PI); c.fill();
+    c.fillStyle = '#fffbeb';
+    c.beginPath(); c.arc(WIDTH/2 - 35, 70, 10, 0, Math.PI*2); c.arc(WIDTH/2, 65, 12, 0, Math.PI*2); c.arc(WIDTH/2 + 35, 70, 10, 0, Math.PI*2); c.fill();
+
+    // Mahogany Dining Table with White Linen Tablecloth
+    c.fillStyle = '#ffffff';
+    c.beginPath(); c.moveTo(170, 285); c.lineTo(790, 285); c.lineTo(855, 380); c.lineTo(105, 380); c.closePath(); c.fill();
+    c.fillStyle = '#f1f5f9';
+    c.fillRect(105, 375, 750, 5); // Tablecloth hem
+
+    // Fruit Bowl Centerpiece
+    c.fillStyle = '#78350f';
+    c.beginPath(); c.arc(WIDTH/2, 305, 38, 0, Math.PI); c.fill();
+    c.fillStyle = '#dc2626'; c.beginPath(); c.arc(WIDTH/2 - 14, 292, 13, 0, Math.PI*2); c.fill(); // Apple
+    c.fillStyle = '#facc15'; c.beginPath(); c.arc(WIDTH/2 + 14, 290, 12, 0, Math.PI*2); c.fill(); // Orange
+    c.fillStyle = '#16a34a'; c.beginPath(); c.arc(WIDTH/2, 280, 11, 0, Math.PI*2); c.fill(); // Pear
+
+    // Polished Parquet Wood Flooring
+    c.fillStyle = '#451a03';
+    c.fillRect(0, 380, WIDTH, HEIGHT - 380);
+  },
+
+  // 6. LAUNDRY ROOM
+  laundry_room: function(c) {
+    // Pastel Aqua Tiles
+    c.fillStyle = '#bae6fd';
+    c.fillRect(0, 0, WIDTH, 380);
+    c.strokeStyle = '#e0f2fe'; c.lineWidth = 2;
+    for (let y = 0; y < 380; y += 30) {
+      c.beginPath(); c.moveTo(0, y); c.lineTo(WIDTH, y); c.stroke();
+    }
+
+    // Shelving with Laundry Detergent Jugs
+    c.fillStyle = '#64748b';
+    c.fillRect(100, 100, 420, 16);
+    c.fillStyle = '#ef4444'; c.fillRect(130, 48, 35, 52); // Tide-style bottle
+    c.fillStyle = '#0284c7'; c.fillRect(200, 42, 45, 58);
+    c.fillStyle = '#eab308'; c.fillRect(280, 56, 38, 44);
+
+    // Overhead Drying Line with Hanging Clothes & Clothes Pins
+    c.strokeStyle = '#475569'; c.lineWidth = 2;
+    c.beginPath(); c.moveTo(520, 75); c.quadraticCurveTo(720, 115, 920, 75); c.stroke();
+    c.fillStyle = '#ec4899'; c.fillRect(600, 92, 34, 45); // Pink shirt
+    c.fillStyle = '#06b6d4'; c.fillRect(690, 98, 42, 54); // Blue towel
+
+    // Front-Loading Washing Machine with Water in Porthole
+    c.fillStyle = '#ffffff';
+    c.beginPath(); c.roundRect(140, 185, 185, 185, 12); c.fill();
+    c.fillStyle = '#334155'; c.beginPath(); c.arc(232, 280, 62, 0, Math.PI*2); c.fill();
+    c.fillStyle = '#0284c7'; c.beginPath(); c.arc(232, 280, 48, 0, Math.PI*2); c.fill();
+
+    // Front-Loading Dryer
+    c.fillStyle = '#f8fafc';
+    c.beginPath(); c.roundRect(360, 185, 185, 185, 12); c.fill();
+    c.fillStyle = '#334155'; c.beginPath(); c.arc(452, 280, 62, 0, Math.PI*2); c.fill();
+    c.fillStyle = '#f97316'; c.beginPath(); c.arc(452, 280, 48, 0, Math.PI*2); c.fill();
+
+    // Woven Laundry Basket with Overflowing Clothes
+    c.fillStyle = '#ca8a04';
+    c.beginPath(); c.moveTo(700, 370); c.lineTo(685, 290); c.lineTo(825, 290); c.lineTo(810, 370); c.closePath(); c.fill();
+    c.fillStyle = '#f43f5e'; c.beginPath(); c.arc(740, 285, 24, 0, Math.PI*2); c.fill();
+    c.fillStyle = '#38bdf8'; c.beginPath(); c.arc(775, 282, 22, 0, Math.PI*2); c.fill();
+
+    // Slip-Resistant Blue Floor Tiles
+    c.fillStyle = '#0369a1';
+    c.fillRect(0, 370, WIDTH, HEIGHT - 370);
+  },
+
+  // 7. BASEMENT
+  basement: function(c) {
+    // Weathered Cinder Block / Brick Wall
+    c.fillStyle = '#334155';
+    c.fillRect(0, 0, WIDTH, 380);
+    c.strokeStyle = '#1e293b'; c.lineWidth = 2.5;
+    for (let y = 0; y < 380; y += 32) {
+      c.beginPath(); c.moveTo(0, y); c.lineTo(WIDTH, y); c.stroke();
+      const off = (Math.floor(y / 32) % 2 === 0) ? 0 : 40;
+      for (let x = off; x < WIDTH; x += 80) {
+        c.beginPath(); c.moveTo(x, y); c.lineTo(x, y + 32); c.stroke();
+      }
+    }
+
+    // Overhead Industrial Copper Pipes with Brass Valves
+    c.fillStyle = '#b45309'; c.fillRect(0, 25, WIDTH, 18);
+    c.fillStyle = '#92400e'; c.fillRect(0, 52, WIDTH, 14);
+    // Valve wheel
+    c.fillStyle = '#ef4444'; c.beginPath(); c.arc(470, 34, 18, 0, Math.PI*2); c.fill();
+
+    // Cobwebs in top corner
+    c.strokeStyle = 'rgba(255,255,255,0.25)'; c.lineWidth = 1;
+    c.beginPath(); c.moveTo(0, 0); c.lineTo(120, 0); c.lineTo(0, 120); c.closePath(); c.stroke();
+
+    // Dangling Bare Lightbulb on Cord
+    c.strokeStyle = '#0f172a'; c.lineWidth = 3;
+    c.beginPath(); c.moveTo(WIDTH/2, 0); c.lineTo(WIDTH/2, 130); c.stroke();
+    c.fillStyle = '#fef08a';
+    c.beginPath(); c.arc(WIDTH/2, 145, 16, 0, Math.PI*2); c.fill();
+
+    // Heavy Duty Water Heater / Boiler with Exhaust Chimney
+    c.fillStyle = '#475569';
+    c.beginPath(); c.roundRect(710, 110, 150, 250, 22); c.fill();
+    c.fillStyle = '#0f172a';
+    c.fillRect(735, 150, 42, 34); // Pressure Gauge
+    c.fillStyle = '#f97316';
+    c.beginPath(); c.arc(785, 305, 16, 0, Math.PI*2); c.fill(); // Blue/Orange Pilot flame
+
+    // Piled Cardboard Moving Boxes
+    c.fillStyle = '#b45309';
+    c.fillRect(80, 220, 130, 120);
+    c.fillRect(190, 190, 120, 150);
+    c.fillStyle = '#d97706';
+    c.fillRect(80, 275, 130, 8); // Packing Tape
+    c.fillRect(190, 255, 120, 8);
+
+    // Weathered Concrete Floor with Cracks
+    c.fillStyle = '#1e293b';
+    c.fillRect(0, 370, WIDTH, HEIGHT - 370);
+    c.strokeStyle = '#0f172a'; c.lineWidth = 2;
+    c.beginPath(); c.moveTo(280, 430); c.lineTo(340, 470); c.lineTo(380, 460); c.stroke();
+    c.beginPath(); c.moveTo(610, 490); c.lineTo(660, 520); c.lineTo(720, 510); c.stroke();
+  },
+
+  // 8. GARAGE
+  garage: function(c) {
+    // Concrete Walls
+    c.fillStyle = '#475569';
+    c.fillRect(0, 0, WIDTH, 380);
+
+    // Roll-Up Segmented Garage Door with Horizontal Panels
+    c.fillStyle = '#cbd5e1';
+    c.fillRect(440, 15, 485, 355);
+    c.strokeStyle = '#64748b'; c.lineWidth = 4;
+    for (let y = 15; y <= 370; y += 88) {
+      c.beginPath(); c.moveTo(440, y); c.lineTo(925, y); c.stroke();
+    }
+
+    // Pegboard with Tool Silhouettes
+    c.fillStyle = '#94a3b8';
+    c.fillRect(35, 35, 350, 190);
+    c.fillStyle = '#1e293b';
+    // Screwdrivers & Wrench on Pegboard
+    c.fillRect(75, 65, 14, 85); c.beginPath(); c.arc(82, 60, 16, 0, Math.PI*2); c.fill();
+    c.fillRect(150, 55, 14, 95); c.fillRect(132, 55, 50, 24); // Hammer
+    c.beginPath(); c.moveTo(240, 65); c.lineTo(320, 115); c.lineTo(240, 125); c.fill(); // Handsaw
+
+    // Rolling Red Heavy-Duty Mechanic's Toolbox
+    c.fillStyle = '#b91c1c';
+    c.fillRect(35, 235, 350, 135);
+    c.fillStyle = '#1e293b';
+    c.fillRect(25, 225, 370, 18);
+    // Drawers with Chrome Handles
+    c.fillStyle = '#7f1d1d';
+    c.fillRect(55, 255, 140, 42); c.fillRect(215, 255, 140, 42);
+    c.fillRect(55, 310, 300, 42);
+    c.fillStyle = '#e2e8f0';
+    c.fillRect(100, 273, 50, 6); c.fillRect(260, 273, 50, 6);
+    c.fillRect(180, 328, 70, 6);
+
+    // Concrete Floor with Tire Tracks & Rainbow Oil Slick
+    c.fillStyle = '#334155';
+    c.fillRect(0, 370, WIDTH, HEIGHT - 370);
+
+    // Chromatic Oil Slick
+    const oilSlick = c.createRadialGradient(650, 450, 5, 650, 450, 80);
+    oilSlick.addColorStop(0, 'rgba(168, 85, 247, 0.7)');
+    oilSlick.addColorStop(0.3, 'rgba(6, 182, 212, 0.6)');
+    oilSlick.addColorStop(0.6, 'rgba(34, 197, 94, 0.5)');
+    oilSlick.addColorStop(1, 'rgba(15, 23, 42, 0)');
+    c.fillStyle = oilSlick;
+    c.beginPath(); c.ellipse(650, 450, 85, 30, 0.2, 0, Math.PI*2); c.fill();
+  }
+};
+
+// --- COCKROACH CLASS ---
+class Roach {
+  constructor(speedMult) {
+    this.width = 46;
+    this.height = 30;
+    this.alive = true;
+    this.speedMult = speedMult || 1.0;
+
+    const spawnSide = Math.floor(Math.random() * 4);
+    if (spawnSide === 0) {
+      this.x = -30;
+      this.y = 100 + Math.random() * 450;
+      this.angle = 0;
+    } else if (spawnSide === 1) {
+      this.x = WIDTH + 30;
+      this.y = 100 + Math.random() * 450;
+      this.angle = Math.PI;
+    } else if (spawnSide === 2) {
+      this.x = 100 + Math.random() * (WIDTH - 200);
+      this.y = HEIGHT + 20;
+      this.angle = -Math.PI / 2;
+    } else {
+      this.x = 100 + Math.random() * (WIDTH - 200);
+      this.y = 200 + Math.random() * 150;
+      this.angle = Math.random() * Math.PI * 2;
+    }
+
+    this.baseSpeed = (75 + Math.random() * 65) * this.speedMult;
+    this.currentSpeed = this.baseSpeed;
+    this.legPhase = Math.random() * Math.PI * 2;
+    this.turnTimer = 0.5 + Math.random() * 1.5;
+    this.pauseTimer = 0;
+  }
+
+  update(dt) {
+    if (!this.alive) return;
+
+    this.turnTimer -= dt;
+    if (this.turnTimer <= 0) {
+      this.turnTimer = 1.0 + Math.random() * 2.0;
+      if (Math.random() < 0.25) {
+        this.pauseTimer = 0.4 + Math.random() * 0.7;
+      } else {
+        this.angle += (Math.random() - 0.5) * 1.8;
+      }
+    }
+
+    if (this.pauseTimer > 0) {
+      this.pauseTimer -= dt;
+      this.legPhase += dt * 4;
+      return;
+    }
+
+    if (this.x < 30) this.angle = 0;
+    if (this.x > WIDTH - 30) this.angle = Math.PI;
+    if (this.y < 70) this.angle = Math.PI / 2;
+    if (this.y > HEIGHT - 40) this.angle = -Math.PI / 2;
+
+    this.x += Math.cos(this.angle) * this.currentSpeed * dt;
+    this.y += Math.sin(this.angle) * this.currentSpeed * dt;
+    this.legPhase += dt * (this.currentSpeed / 5);
+  }
+
+  draw(c) {
+    if (!this.alive) return;
+
+    c.save();
+    c.translate(this.x, this.y);
+    c.rotate(this.angle);
+
+    // Drop shadow
+    c.fillStyle = 'rgba(0,0,0,0.3)';
+    c.beginPath();
+    c.ellipse(2, 7, 20, 11, 0, 0, Math.PI*2);
+    c.fill();
+
+    // 6 Crawling Jointed Legs
+    c.strokeStyle = '#3e1d09';
+    c.lineWidth = 2.4;
+    c.lineCap = 'round';
+    for (let i = -1; i <= 1; i++) {
+      const legOffset = Math.sin(this.legPhase + i * 1.5) * 6;
+      c.beginPath();
+      c.moveTo(i * 9, -5);
+      c.lineTo(i * 9 - 4, -16 + legOffset);
+      c.lineTo(i * 9 - 11, -22 + legOffset);
+      c.stroke();
+      c.beginPath();
+      c.moveTo(i * 9, 5);
+      c.lineTo(i * 9 + 4, 16 - legOffset);
+      c.lineTo(i * 9 + 11, 22 - legOffset);
+      c.stroke();
+    }
+
+    // Segmented Shell Body
+    c.fillStyle = '#78350f';
+    c.beginPath();
+    c.ellipse(-3, 0, 18, 10, 0, 0, Math.PI * 2);
+    c.fill();
+    c.strokeStyle = '#451a03';
+    c.lineWidth = 1.5;
+    c.stroke();
+
+    // Shell Highlights & Segments
+    c.fillStyle = 'rgba(255,255,255,0.22)';
+    c.beginPath();
+    c.ellipse(-2, -3, 13, 3, -0.1, 0, Math.PI*2);
+    c.fill();
+
+    // Head
+    c.fillStyle = '#451a03';
+    c.beginPath();
+    c.ellipse(15, 0, 7, 6, 0, 0, Math.PI * 2);
+    c.fill();
+
+    // Googly Eyes
+    c.fillStyle = '#ffffff';
+    c.beginPath();
+    c.arc(17, -4, 3.5, 0, Math.PI * 2);
+    c.arc(17, 4, 3.5, 0, Math.PI * 2);
+    c.fill();
+    c.fillStyle = '#111';
+    c.beginPath();
+    c.arc(18, -4, 1.8, 0, Math.PI * 2);
+    c.arc(18, 4, 1.8, 0, Math.PI * 2);
+    c.fill();
+
+    // Antennae
+    const twitch = Math.sin(this.legPhase * 1.5) * 6;
+    c.strokeStyle = '#3e1d09';
+    c.lineWidth = 1.6;
+    c.beginPath();
+    c.moveTo(20, -3);
+    c.quadraticCurveTo(32, -14 + twitch, 43, -19 + twitch);
+    c.moveTo(20, 3);
+    c.quadraticCurveTo(32, 14 - twitch, 43, 19 - twitch);
+    c.stroke();
+
+    c.restore();
+  }
+}
+
+// --- PARTICLES & FLOATING TEXTS ---
+class Particle {
+  constructor(x, y, color, speed, size, life) {
+    this.x = x;
+    this.y = y;
+    this.color = color;
+    this.size = size;
+    this.life = life;
+    this.maxLife = life;
+    const a = Math.random() * Math.PI * 2;
+    const s = Math.random() * speed;
+    this.vx = Math.cos(a) * s;
+    this.vy = Math.sin(a) * s - 25;
+  }
+  update(dt) {
+    this.x += this.vx * dt;
+    this.y += this.vy * dt;
+    this.life -= dt;
+  }
+  draw(c) {
+    if (this.life <= 0) return;
+    c.save();
+    c.globalAlpha = Math.max(0, this.life / this.maxLife);
+    c.fillStyle = this.color;
+    c.beginPath();
+    c.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+    c.fill();
+    c.restore();
+  }
+}
+
+class FloatingScore {
+  constructor(x, y, text) {
+    this.x = x;
+    this.y = y;
+    this.text = text;
+    this.life = 1.8;
+  }
+  update(dt) {
+    this.y -= 32 * dt;
+    this.life -= dt;
+  }
+  draw(c) {
+    if (this.life <= 0) return;
+    c.save();
+    c.globalAlpha = Math.min(1, this.life / 0.5);
+    c.font = '900 22px "Segoe UI", sans-serif';
+    c.fillStyle = '#ffd166';
+    c.strokeStyle = '#000';
+    c.lineWidth = 4;
+    c.strokeText(this.text, this.x - 30, this.y);
+    c.fillText(this.text, this.x - 30, this.y);
+    c.restore();
+  }
+}
+
+// --- CARTOON-REALISTIC ROACH SUPER SOAKER BLASTER & ARMS ---
+function drawWeaponAndHands(c) {
+  // Smooth horizontal tracking with velocity-based fluid slosh
+  const prevX = gameState.gunX;
+  gameState.gunX += (gameState.mouseX - gameState.gunX) * 0.18;
+  gameState.gunVelocityX = (gameState.gunX - prevX);
+  gameState.liquidSlosh += (gameState.gunVelocityX * 0.4 - gameState.liquidSlosh) * 0.12;
+
+  const clampedX = Math.max(210, Math.min(WIDTH - 210, gameState.gunX));
+  const baseY = HEIGHT - 10 + gameState.recoilOffset;
+
+  let reloadDrop = 0;
+  let pumpSlideOffset = 0;
+  if (gameState.reloading) {
+    const progress = (gameState.reloadDuration - gameState.reloadTimer) / gameState.reloadDuration;
+    reloadDrop = Math.sin(progress * Math.PI) * 115;
+    pumpSlideOffset = Math.sin(progress * Math.PI * 2) * 35; // Pump action slide cycle!
+  }
+
+  const weaponY = baseY + reloadDrop;
+
+  c.save();
+  c.translate(clampedX, weaponY);
+
+  const angleTilt = (gameState.mouseX - clampedX) * 0.0009;
+  c.rotate(angleTilt);
+
+  // 1. CARTOON-REALISTIC EXTERMINATOR ARMS & HAZMAT SUIT SLEEVES
+  // Left Forearm extending from bottom edge
+  c.fillStyle = '#f59e0b'; // High-vis Hazmat Orange/Yellow
+  c.beginPath();
+  c.moveTo(-180, 190);
+  c.lineTo(-95, -35);
+  c.lineTo(-42, -25);
+  c.lineTo(-100, 190);
+  c.closePath();
+  c.fill();
+  c.fillStyle = '#d97706'; // Fabric shadow crease
+  c.fillRect(-130, 60, 48, 14);
+  // Reflective Silver Safety Band
+  c.fillStyle = '#e2e8f0';
+  c.fillRect(-145, 95, 52, 16);
+  c.fillStyle = '#22c55e'; // Fluorescent green stripe
+  c.fillRect(-145, 101, 52, 4);
+
+  // Right Forearm extending from bottom edge
+  c.fillStyle = '#f59e0b';
+  c.beginPath();
+  c.moveTo(180, 190);
+  c.lineTo(95, -5);
+  c.lineTo(42, 0);
+  c.lineTo(100, 190);
+  c.closePath();
+  c.fill();
+  c.fillStyle = '#d97706';
+  c.fillRect(75, 75, 48, 14);
+  c.fillStyle = '#e2e8f0';
+  c.fillRect(80, 105, 52, 16);
+  c.fillStyle = '#22c55e';
+  c.fillRect(80, 111, 52, 4);
+
+  // 2. INDUSTRIAL NITRILE CHEMICAL WORK GLOVES (Deep Teal/Charcoal with Knuckle Creases)
+  // Left Glove (Gripping the Pump Slide under the barrel)
+  c.fillStyle = '#0f766e'; // Teal chemical glove
+  c.beginPath();
+  c.roundRect(-102, -58 + pumpSlideOffset, 55, 48, 12);
+  c.fill();
+  // Knuckle folds and thumb wrap
+  c.fillStyle = '#115e59';
+  c.fillRect(-96, -42 + pumpSlideOffset, 42, 6);
+  c.fillRect(-96, -32 + pumpSlideOffset, 42, 6);
+  c.fillStyle = '#134e4a';
+  c.beginPath(); c.arc(-55, -45 + pumpSlideOffset, 11, 0, Math.PI*2); c.fill(); // Thumb pad
+
+  // Right Glove (Gripping the Ergonomic Pistol Trigger Handle)
+  c.fillStyle = '#0f766e';
+  c.beginPath();
+  c.roundRect(46, -26, 56, 50, 12);
+  c.fill();
+  c.fillStyle = '#115e59';
+  c.fillRect(52, -12, 44, 6);
+  c.fillRect(52, -2, 44, 6);
+  // Trigger finger wrapping inside guard
+  c.fillStyle = '#134e4a';
+  c.beginPath(); c.roundRect(30, -32, 24, 12, 5); c.fill();
+
+  // 3. THE SUPER SOAKER BLASTER RIFLE
+  // Main Molded Chasis Body (Futuristic High-Contrast Exterminator Blaster)
+  const chassisGrad = c.createLinearGradient(-50, 0, 50, 0);
+  chassisGrad.addColorStop(0, '#1e293b');
+  chassisGrad.addColorStop(0.5, '#334155');
+  chassisGrad.addColorStop(1, '#0f172a');
+  c.fillStyle = chassisGrad;
+  c.beginPath();
+  c.roundRect(-48, -80, 96, 125, 12);
+  c.fill();
+
+  // Electric Neon Green / Cyan Racing Stripe Accents
+  c.fillStyle = '#22c55e';
+  c.fillRect(-45, -55, 90, 12);
+  c.fillStyle = '#06b6d4';
+  c.fillRect(-45, -40, 90, 6);
+
+  // Trigger Guard & Chrome Trigger
+  c.strokeStyle = '#64748b'; c.lineWidth = 4;
+  c.strokeRect(32, -36, 26, 26);
+  c.fillStyle = '#e2e8f0';
+  c.fillRect(40, -30, 5, 15);
+
+  // Brass Industrial Pressure Dial / Gauge
+  c.fillStyle = '#d97706'; // Brass bezel
+  c.beginPath(); c.arc(0, -42, 20, 0, Math.PI*2); c.fill();
+  c.fillStyle = '#fffbeb'; // Gauge face
+  c.beginPath(); c.arc(0, -42, 16, 0, Math.PI*2); c.fill();
+  // Gauge tick marks
+  c.strokeStyle = '#0f172a'; c.lineWidth = 1.5;
+  c.beginPath(); c.moveTo(0, -56); c.lineTo(0, -52); c.moveTo(-10, -42); c.lineTo(-6, -42); c.moveTo(10, -42); c.lineTo(6, -42); c.stroke();
+  // Dynamic Needle (Jitters with weapon activity)
+  const needleAngle = -0.5 + (gameState.ammo / MAX_AMMO) * 2.2 + (Math.random() - 0.5) * 0.08;
+  c.strokeStyle = '#ef4444'; c.lineWidth = 2;
+  c.beginPath();
+  c.moveTo(0, -42);
+  c.lineTo(Math.cos(needleAngle) * 12, -42 + Math.sin(needleAngle) * 12);
+  c.stroke();
+
+  // Coiled Fluid Delivery Hose from reservoir into chamber
+  c.strokeStyle = '#0284c7'; c.lineWidth = 6;
+  c.beginPath();
+  c.moveTo(-36, -70);
+  c.bezierCurveTo(-55, -90, -55, -125, -24, -135);
+  c.stroke();
+
+  // Heavy Chrome Dual Barrel
+  const barrelGrad = c.createLinearGradient(-18, 0, 18, 0);
+  barrelGrad.addColorStop(0, '#475569');
+  barrelGrad.addColorStop(0.5, '#cbd5e1');
+  barrelGrad.addColorStop(1, '#334155');
+  c.fillStyle = barrelGrad;
+  c.fillRect(-16, -185, 32, 110);
+  // Barrel Heavy Clamp Rings
+  c.fillStyle = '#0f172a';
+  c.fillRect(-20, -165, 40, 9);
+  c.fillRect(-20, -130, 40, 9);
+
+  // Machined Brass Super Soaker Nozzle
+  c.fillStyle = '#f59e0b';
+  c.beginPath();
+  c.moveTo(-18, -185);
+  c.lineTo(18, -185);
+  c.lineTo(11, -210);
+  c.lineTo(-11, -210);
+  c.closePath();
+  c.fill();
+  c.fillStyle = '#0f172a';
+  c.beginPath(); c.arc(0, -210, 5, 0, Math.PI*2); c.fill(); // Bore hole
+
+  // 4. UNDER-BARREL PUMP SLIDE (Super Soaker Signature!)
+  c.fillStyle = '#f97316'; // Blaster Safety Orange
+  c.beginPath();
+  c.roundRect(-24, -150 + pumpSlideOffset, 48, 52, 8);
+  c.fill();
+  // Ergonomic grip ridges on pump slide
+  c.fillStyle = '#c2410c';
+  c.fillRect(-22, -142 + pumpSlideOffset, 44, 4);
+  c.fillRect(-22, -132 + pumpSlideOffset, 44, 4);
+  c.fillRect(-22, -122 + pumpSlideOffset, 44, 4);
+
+  // 5. TRANSLUCENT PRESSURIZED BUG-SOLVENT TANK (Top-Mounted Reservoir)
+  c.save();
+  c.translate(0, -78);
+
+  // Clear Acrylic Tank Tube
+  c.fillStyle = 'rgba(255, 255, 255, 0.25)';
+  c.beginPath();
+  c.roundRect(-28, -60, 56, 56, 14);
+  c.fill();
+  c.strokeStyle = '#0284c7'; c.lineWidth = 3;
+  c.stroke();
+
+  // Toxic Chemical Liquid with Animated Level & Dynamic Slosh!
+  const liquidFill = (gameState.ammo / MAX_AMMO);
+  const liquidHeight = 50 * liquidFill;
+  const slosh = gameState.liquidSlosh;
+
+  if (liquidHeight > 2) {
+    const liquidGrad = c.createLinearGradient(0, 0, 0, -liquidHeight);
+    liquidGrad.addColorStop(0, '#10b981');
+    liquidGrad.addColorStop(0.5, '#22c55e');
+    liquidGrad.addColorStop(1, '#a3e635');
+    c.fillStyle = liquidGrad;
+
+    c.save();
+    c.beginPath();
+    c.roundRect(-26, -6 + slosh * 0.1, 52, -liquidHeight, 10);
+    c.fill();
+
+    // Effervescent Chemical Bubbles
+    c.fillStyle = 'rgba(255,255,255,0.7)';
+    c.beginPath();
+    c.arc(-10, -liquidHeight * 0.5, 3, 0, Math.PI*2);
+    c.arc(8, -liquidHeight * 0.7, 4, 0, Math.PI*2);
+    c.arc(0, -liquidHeight * 0.3, 2, 0, Math.PI*2);
+    c.fill();
+    c.restore();
+  }
+
+  // Tank Specular Reflection Shine
+  c.fillStyle = 'rgba(255,255,255,0.45)';
+  c.beginPath();
+  c.roundRect(-22, -54, 8, 44, 4);
+  c.fill();
+
+  // Tank Pressure Cap
+  c.fillStyle = '#ef4444';
+  c.roundRect(-16, -68, 32, 10, 4); c.fill();
+
+  c.restore();
+
+  // 6. ATTACHED CHEMICAL CANISTER MAGAZINE (Mounted Underneath)
+  c.save();
+  c.translate(-4, 0);
+
+  // Bracket Clamp
+  c.fillStyle = '#0f172a';
+  c.fillRect(-28, 4, 56, 12);
+
+  // Canister Body
+  const canGrad = c.createLinearGradient(-35, 0, 35, 0);
+  canGrad.addColorStop(0, '#1e293b');
+  canGrad.addColorStop(0.5, '#3b82f6');
+  canGrad.addColorStop(1, '#1e293b');
+  c.fillStyle = canGrad;
+  c.beginPath();
+  c.roundRect(-30, 16, 60, 85, [8, 8, 14, 14]);
+  c.fill();
+
+  // Canister Label
+  c.fillStyle = '#ffffff';
+  c.fillRect(-28, 36, 56, 46);
+
+  c.fillStyle = '#0f172a';
+  c.font = 'bold 8px "Segoe UI", sans-serif';
+  c.textAlign = 'center';
+  c.fillText('REAPER-SOLV', 0, 48);
+  c.fillStyle = '#dc2626';
+  c.font = 'bold 11px sans-serif';
+  c.fillText('MAX 20', 0, 62);
+  c.fillText('☠️', 0, 75);
+
+  c.restore();
+
+  // 7. HIGH PRESSURE WATER/SOLVENT STREAM FLASH ANIMATION
+  if (gameState.sprayFlashTimer > 0) {
+    const flashAlpha = gameState.sprayFlashTimer / 0.14;
+    c.save();
+    c.globalAlpha = flashAlpha;
+
+    // Glowing Pressurized Hydro Jet Cone
+    const sprayCone = c.createRadialGradient(0, -220, 4, 0, -280, 95);
+    sprayCone.addColorStop(0, 'rgba(34, 197, 94, 0.95)');
+    sprayCone.addColorStop(0.3, 'rgba(6, 182, 212, 0.85)');
+    sprayCone.addColorStop(1, 'rgba(34, 197, 94, 0)');
+
+    c.fillStyle = sprayCone;
+    c.beginPath();
+    c.moveTo(-11, -210);
+    c.lineTo(-90, -340);
+    c.lineTo(90, -340);
+    c.lineTo(11, -210);
+    c.closePath();
+    c.fill();
+
+    // High velocity white nozzle jet
+    c.fillStyle = '#ffffff';
+    c.beginPath();
+    c.arc(0, -218, 12, 0, Math.PI * 2);
+    c.fill();
+    c.restore();
+  }
+
+  c.restore();
+}
+
+// --- HUD DISPLAY ---
+function drawHUD(c) {
+  c.fillStyle = 'rgba(15, 23, 42, 0.88)';
+  c.fillRect(0, 0, WIDTH, 54);
+  c.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+  c.lineWidth = 2;
+  c.beginPath(); c.moveTo(0, 54); c.lineTo(WIDTH, 54); c.stroke();
+
+  c.font = 'bold 17px "Segoe UI", monospace';
+  c.textBaseline = 'middle';
+  c.textAlign = 'left';
+
+  c.fillStyle = '#ffd166';
+  c.fillText(`SCORE: ${gameState.score}`, 20, 27);
+
+  c.fillStyle = '#2ed573';
+  c.fillText(`REAPED: ${gameState.kills}/100`, 175, 27);
+
+  const curRoom = ROOMS[gameState.roomIndex];
+  c.fillStyle = '#70a1ff';
+  c.fillText(`LVL ${gameState.roomIndex + 1}: ${curRoom.name.toUpperCase()}`, 350, 27);
+
+  c.textAlign = 'right';
+  c.fillStyle = gameState.ammo <= 3 ? '#ff4757' : '#ffffff';
+  c.fillText(`AMMO: ${gameState.ammo}/${MAX_AMMO}`, 720, 27);
+
+  // Tactical Ammo Pips
+  for (let i = 0; i < MAX_AMMO; i++) {
+    const pipX = 730 + (i % 10) * 10;
+    const pipY = i < 10 ? 20 : 34;
+    c.fillStyle = i < gameState.ammo ? '#2ed573' : 'rgba(255,255,255,0.2)';
+    c.fillRect(pipX, pipY, 6, 9);
+  }
+
+  c.textAlign = 'center';
+  if (gameState.reloading) {
+    c.fillStyle = '#ffd166';
+    c.font = 'bold 22px "Segoe UI", sans-serif';
+    c.fillText('PUMPING & RELOADING SUPER BLASTER...', WIDTH / 2, 95);
+  } else if (gameState.ammo === 0) {
+    const flash = Math.floor(Date.now() / 250) % 2 === 0;
+    c.fillStyle = flash ? '#ff4757' : '#ffffff';
+    c.font = '900 24px "Segoe UI", sans-serif';
+    c.fillText('EMPTY! PRESS [R] TO RELOAD!', WIDTH / 2, 95);
+  }
+
+  if (gameState.roomBannerTimer > 0) {
+    const alpha = Math.min(1, gameState.roomBannerTimer / 0.5);
+    c.save();
+    c.globalAlpha = alpha;
+    c.fillStyle = 'rgba(0, 0, 0, 0.8)';
+    c.fillRect(0, HEIGHT / 2 - 65, WIDTH, 130);
+
+    c.fillStyle = '#2ed573';
+    c.font = '900 36px "Segoe UI", sans-serif';
+    c.fillText(gameState.roomBannerText, WIDTH / 2, HEIGHT / 2 - 16);
+
+    c.fillStyle = '#ffd166';
+    c.font = 'bold 24px "Segoe UI", sans-serif';
+    c.fillText(gameState.roomBannerSub, WIDTH / 2, HEIGHT / 2 + 28);
+    c.restore();
+  }
+}
+
+// --- CROSSHAIR RETICLE ---
+function drawCrosshair(c) {
+  const x = gameState.mouseX;
+  const y = gameState.mouseY;
+
+  let hovering = false;
+  for (const r of roaches) {
+    if (r.alive && Math.hypot(r.x - x, r.y - y) < 35) {
+      hovering = true;
+      break;
+    }
+  }
+
+  c.save();
+  c.strokeStyle = hovering ? '#ff4757' : '#2ed573';
+  c.lineWidth = 2.5;
+
+  c.beginPath();
+  c.arc(x, y, 18, 0, Math.PI * 2);
+  c.stroke();
+
+  c.beginPath();
+  c.moveTo(x - 26, y); c.lineTo(x - 12, y);
+  c.moveTo(x + 12, y); c.lineTo(x + 26, y);
+  c.moveTo(x, y - 26); c.lineTo(x, y - 12);
+  c.moveTo(x, y + 12); c.lineTo(x, y + 26);
+  c.stroke();
+
+  c.fillStyle = hovering ? '#ff4757' : '#ffffff';
+  c.beginPath();
+  c.arc(x, y, 3, 0, Math.PI * 2);
+  c.fill();
+  c.restore();
+}
+
+// --- GAME LOGIC ---
+function fireWeapon() {
+  if (!gameState.isPlaying || gameState.isPaused || gameState.isVictory) return;
+  if (gameState.reloading) return;
+
+  if (gameState.ammo <= 0) {
+    sound.playEmpty();
+    return;
+  }
+
+  gameState.ammo--;
+  sound.playShoot();
+
+  gameState.recoilOffset = 24;
+  gameState.sprayFlashTimer = 0.14;
+
+  for (let i = 0; i < 20; i++) {
+    const pColor = ['#2ed573', '#7bed9f', '#ffffff', '#06b6d4'][Math.floor(Math.random() * 4)];
+    particles.push(new Particle(gameState.mouseX, gameState.mouseY, pColor, 150, 3 + Math.random() * 4, 0.45));
+  }
+
+  let hitRoach = null;
+  let closestDist = 44;
+
+  for (const r of roaches) {
+    if (r.alive) {
+      const dist = Math.hypot(r.x - gameState.mouseX, r.y - gameState.mouseY);
+      if (dist < closestDist) {
+        closestDist = dist;
+        hitRoach = r;
+      }
+    }
+  }
+
+  if (hitRoach) {
+    eliminateRoach(hitRoach);
+  }
+}
+
+function reloadWeapon() {
+  if (!gameState.isPlaying || gameState.isPaused || gameState.isVictory) return;
+  if (gameState.reloading) return;
+  if (gameState.ammo === MAX_AMMO) return;
+
+  gameState.reloading = true;
+  gameState.reloadTimer = gameState.reloadDuration;
+  sound.playReload();
+}
+
+function eliminateRoach(r) {
+  r.alive = false;
+  gameState.score += POINTS_PER_ROACH;
+  gameState.kills++;
+  gameState.roomKills++;
+
+  sound.playHit();
+  floatingTexts.push(new FloatingScore(r.x, r.y, '+10 POINTS'));
+
+  for (let i = 0; i < 26; i++) {
+    const colors = ['#2ed573', '#ffd166', '#ffffff', '#70a1ff', '#06b6d4'];
+    particles.push(new Particle(r.x, r.y, colors[Math.floor(Math.random() * colors.length)], 170, 4 + Math.random() * 5, 0.65));
+  }
+
+  if (gameState.score >= VICTORY_POINTS) {
+    triggerVictory();
+    return;
+  }
+
+  const curRoom = ROOMS[gameState.roomIndex];
+  if (gameState.roomKills >= curRoom.targetKills) {
+    advanceRoom();
+  }
+}
+
+function advanceRoom() {
+  gameState.roomKills = 0;
+  gameState.roomIndex = (gameState.roomIndex + 1) % ROOMS.length;
+  const nextRoom = ROOMS[gameState.roomIndex];
+
+  gameState.roomBannerTimer = 2.4;
+  gameState.roomBannerText = 'ROOM CLEARED!';
+  gameState.roomBannerSub = `ENTERING THE ${nextRoom.name.toUpperCase()}`;
+
+  sound.playRoomClear();
+  roaches = [];
+}
+
+function triggerVictory() {
+  gameState.score = VICTORY_POINTS;
+  gameState.isVictory = true;
+  gameState.isPlaying = false;
+  sound.playVictory();
+
+  document.getElementById('victory-screen').classList.remove('hidden');
+}
+
+function spawnRoaches(dt) {
+  if (!gameState.isPlaying || gameState.isVictory) return;
+
+  const curRoom = ROOMS[gameState.roomIndex];
+  const activeCount = roaches.filter(r => r.alive).length;
+  if (activeCount < curRoom.maxConcurrent) {
+    if (Math.random() < 0.05 + gameState.roomIndex * 0.01) {
+      roaches.push(new Roach(curRoom.speedMult));
+    }
+  }
+
+  roaches = roaches.filter(r => r.alive);
+}
+
+function startNewGame() {
+  gameState.score = 0;
+  gameState.kills = 0;
+  gameState.ammo = MAX_AMMO;
+  gameState.roomIndex = 0;
+  gameState.roomKills = 0;
+  gameState.reloading = false;
+  gameState.reloadTimer = 0;
+  gameState.isPaused = false;
+  gameState.isPlaying = true;
+  gameState.isVictory = false;
+  gameState.sprayFlashTimer = 0;
+  gameState.roomBannerTimer = 0;
+  gameState.liquidSlosh = 0;
+
+  roaches = [];
+  particles = [];
+  floatingTexts = [];
+
+  document.getElementById('start-screen').classList.add('hidden');
+  document.getElementById('victory-screen').classList.add('hidden');
+  document.getElementById('pause-screen').classList.add('hidden');
+
+  sound.init();
+  sound.startBGM();
+
+  for (let i = 0; i < 3; i++) {
+    roaches.push(new Roach(1.0));
+  }
+}
+
+// --- MAIN LOOP ---
+let lastTime = performance.now();
+
+function gameLoop(currentTime) {
+  const dt = Math.min((currentTime - lastTime) / 1000, 0.1);
+  lastTime = currentTime;
+
+  sound.updateBGM();
+
+  if (gameState.isPlaying && !gameState.isPaused) {
+    if (gameState.reloading) {
+      gameState.reloadTimer -= dt;
+      if (gameState.reloadTimer <= 0) {
+        gameState.reloading = false;
+        gameState.ammo = MAX_AMMO;
+      }
+    }
+
+    if (gameState.recoilOffset > 0) {
+      gameState.recoilOffset = Math.max(0, gameState.recoilOffset - dt * 140);
+    }
+    if (gameState.sprayFlashTimer > 0) {
+      gameState.sprayFlashTimer -= dt;
+    }
+    if (gameState.roomBannerTimer > 0) {
+      gameState.roomBannerTimer -= dt;
+    }
+
+    spawnRoaches(dt);
+    roaches.forEach(r => r.update(dt));
+
+    particles.forEach(p => p.update(dt));
+    particles = particles.filter(p => p.life > 0);
+
+    floatingTexts.forEach(ft => ft.update(dt));
+    floatingTexts = floatingTexts.filter(ft => ft.life > 0);
+  }
+
+  ctx.clearRect(0, 0, WIDTH, HEIGHT);
+
+  const currentRoomKey = ROOMS[gameState.roomIndex].id;
+  if (RoomRenderers[currentRoomKey]) {
+    RoomRenderers[currentRoomKey](ctx);
+  }
+
+  roaches.forEach(r => r.draw(ctx));
+  particles.forEach(p => p.draw(ctx));
+  floatingTexts.forEach(ft => ft.draw(ctx));
+
+  drawWeaponAndHands(ctx);
+  drawHUD(ctx);
+
+  if (gameState.isPlaying && !gameState.isPaused) {
+    drawCrosshair(ctx);
+  }
+
+  requestAnimationFrame(gameLoop);
+}
+
+// --- EVENT LISTENERS ---
+canvas.addEventListener('mousemove', (e) => {
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = WIDTH / rect.width;
+  const scaleY = HEIGHT / rect.height;
+  gameState.mouseX = (e.clientX - rect.left) * scaleX;
+  gameState.mouseY = (e.clientY - rect.top) * scaleY;
+});
+
+canvas.addEventListener('mousedown', (e) => {
+  if (e.button === 0) {
+    fireWeapon();
+  }
+});
+
+window.addEventListener('keydown', (e) => {
+  if (e.key === 'r' || e.key === 'R') {
+    reloadWeapon();
+  } else if (e.key === 'Escape' || e.key === 'p' || e.key === 'P') {
+    togglePause();
+  }
+});
+
+document.getElementById('play-btn').addEventListener('click', () => {
+  startNewGame();
+});
+
+document.getElementById('restart-btn').addEventListener('click', () => {
+  startNewGame();
+});
+
+document.getElementById('resume-btn').addEventListener('click', () => {
+  togglePause();
+});
+
+document.getElementById('pause-btn').addEventListener('click', () => {
+  togglePause();
+});
+
+document.getElementById('sound-btn').addEventListener('click', () => {
+  sound.init();
+  const isSoundOn = sound.toggleMute();
+  document.getElementById('sound-btn').textContent = isSoundOn ? '🔊 SOUND: ON' : '🔇 SOUND: OFF';
+});
+
+function togglePause() {
+  if (!gameState.isPlaying || gameState.isVictory) return;
+  gameState.isPaused = !gameState.isPaused;
+  const pauseScreen = document.getElementById('pause-screen');
+  if (gameState.isPaused) {
+    pauseScreen.classList.remove('hidden');
+    document.getElementById('pause-btn').textContent = '▶️ RESUME';
+  } else {
+    pauseScreen.classList.add('hidden');
+    document.getElementById('pause-btn').textContent = '⏸️ PAUSE';
+  }
+}
+
+requestAnimationFrame(gameLoop);
+</script>
+</body>
+</html>
