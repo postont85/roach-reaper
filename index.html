@@ -1,0 +1,1546 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>The Roach Reaper: House Cleaner</title>
+<style>
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  body {
+    background-color: #11141a;
+    color: #fff;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    overflow: hidden;
+  }
+
+  #game-container {
+    position: relative;
+    width: 960px;
+    height: 600px;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.8), 0 0 0 3px #3b4252;
+    border-radius: 8px;
+    overflow: hidden;
+    background: #000;
+  }
+
+  canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+    cursor: none; /* Custom in-game reticle */
+  }
+
+  /* Overlay UI Screens */
+  .overlay-screen {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: rgba(12, 17, 28, 0.94);
+    backdrop-filter: blur(4px);
+    z-index: 50;
+    text-align: center;
+    padding: 30px;
+    transition: opacity 0.25s ease;
+  }
+
+  .hidden {
+    display: none !important;
+  }
+
+  .title-logo {
+    font-size: 54px;
+    font-weight: 900;
+    letter-spacing: 2px;
+    color: #38ef7d;
+    text-shadow: 0 0 15px rgba(56,239,125,0.6), 4px 4px 0 #11998e, 6px 6px 0 #0f2027;
+    margin-bottom: 5px;
+    text-transform: uppercase;
+  }
+
+  .title-sub {
+    font-size: 24px;
+    font-weight: 700;
+    color: #ffd166;
+    letter-spacing: 4px;
+    margin-bottom: 25px;
+    text-shadow: 2px 2px 0 #333;
+  }
+
+  .instructions-box {
+    background: rgba(255, 255, 255, 0.08);
+    border: 2px solid rgba(255, 255, 255, 0.15);
+    border-radius: 12px;
+    padding: 16px 24px;
+    max-width: 540px;
+    margin-bottom: 25px;
+    text-align: left;
+    font-size: 15px;
+    line-height: 1.6;
+    color: #e2e8f0;
+  }
+
+  .instructions-box ul {
+    list-style: none;
+    margin-top: 8px;
+  }
+
+  .instructions-box li {
+    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+  }
+
+  .instructions-box li span.key {
+    background: #ff5e62;
+    color: #fff;
+    padding: 2px 8px;
+    border-radius: 5px;
+    font-weight: bold;
+    font-size: 13px;
+    margin-right: 12px;
+    min-width: 105px;
+    display: inline-block;
+    text-align: center;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+  }
+
+  .btn {
+    background: linear-gradient(135deg, #11998e, #38ef7d);
+    color: #0b1f1c;
+    font-size: 22px;
+    font-weight: 800;
+    padding: 14px 45px;
+    border: none;
+    border-radius: 50px;
+    cursor: pointer;
+    box-shadow: 0 6px 20px rgba(56, 239, 125, 0.4), inset 0 2px 0 rgba(255,255,255,0.4);
+    transition: transform 0.15s, box-shadow 0.15s, filter 0.15s;
+    letter-spacing: 1.5px;
+  }
+
+  .btn:hover {
+    transform: translateY(-3px) scale(1.03);
+    box-shadow: 0 10px 25px rgba(56, 239, 125, 0.6);
+    filter: brightness(1.1);
+  }
+
+  .btn:active {
+    transform: translateY(1px);
+  }
+
+  /* Audio & Controls bar */
+  #header-bar {
+    position: absolute;
+    top: 10px;
+    right: 15px;
+    z-index: 30;
+    display: flex;
+    gap: 10px;
+  }
+
+  .icon-btn {
+    background: rgba(0, 0, 0, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    color: #fff;
+    padding: 6px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 700;
+    font-size: 13px;
+    transition: background 0.2s;
+  }
+
+  .icon-btn:hover {
+    background: rgba(255, 255, 255, 0.2);
+  }
+
+  #mobile-warning {
+    display: none;
+    background: #ff4757;
+    color: white;
+    padding: 10px 20px;
+    border-radius: 6px;
+    margin-top: 15px;
+    font-size: 14px;
+    text-align: center;
+  }
+
+  @media (max-width: 900px) {
+    #mobile-warning { display: block; }
+    #game-container { width: 95vw; height: 59.375vw; }
+  }
+</style>
+</head>
+<body>
+
+<div id="game-container">
+  <!-- Top Right Utility Buttons -->
+  <div id="header-bar">
+    <button id="sound-btn" class="icon-btn">🔊 SOUND: ON</button>
+    <button id="pause-btn" class="icon-btn">⏸️ PAUSE</button>
+  </div>
+
+  <!-- Canvas Game Viewport -->
+  <canvas id="gameCanvas" width="960" height="600"></canvas>
+
+  <!-- Start Screen -->
+  <div id="start-screen" class="overlay-screen">
+    <div class="title-logo">THE ROACH REAPER</div>
+    <div class="title-sub">HOUSE CLEANER</div>
+
+    <div class="instructions-box">
+      <strong>REAPER BRIEFING:</strong>
+      <ul>
+        <li><span class="key">MOUSE MOVE</span> Aim Bug Spray Rifle horizontally</li>
+        <li><span class="key">LEFT CLICK</span> Fire pressurized Bug Spray (Consumes 1 Round)</li>
+        <li><span class="key">KEY [ R ]</span> Reload 20-Round Spray Canister</li>
+        <li><span class="key">GOAL</span> Clear 8 rooms and reach 1,000 Points (100 Roaches)!</li>
+      </ul>
+    </div>
+
+    <button id="play-btn" class="btn">REAP THE ROACHES</button>
+  </div>
+
+  <!-- Victory Screen -->
+  <div id="victory-screen" class="overlay-screen hidden">
+    <div class="title-logo" style="color: #ffd166; text-shadow: 0 0 15px rgba(255,209,102,0.6);">CONGRATULATIONS!</div>
+    <div class="title-sub" style="color: #06d6a0;">THE HOUSE HAS BEEN HARVESTED ROACH-FREE!</div>
+
+    <div class="instructions-box" style="text-align: center; font-size: 17px;">
+      <p style="margin-bottom: 8px;">⭐ Final Score: <strong style="color:#ffd166;">1,000 POINTS</strong></p>
+      <p style="margin-bottom: 8px;">🪳 Cockroaches Reaped: <strong style="color:#06d6a0;">100 / 100</strong></p>
+      <p>🏡 Rooms Cleansed: <strong style="color:#118ab2;">8 ROOMS (Kitchen to Garage)</strong></p>
+    </div>
+
+    <button id="restart-btn" class="btn">PLAY AGAIN</button>
+  </div>
+
+  <!-- Pause Overlay -->
+  <div id="pause-screen" class="overlay-screen hidden">
+    <h1 style="font-size: 48px; color: #ffd166; margin-bottom: 20px;">GAME PAUSED</h1>
+    <button id="resume-btn" class="btn" style="font-size: 18px; padding: 10px 30px;">RESUME</button>
+  </div>
+</div>
+
+<div id="mobile-warning">
+  ⚠️ Optimized for Desktop Browsers using Mouse and Keyboard!
+</div>
+
+<script>
+/**
+ * THE ROACH REAPER: HOUSE CLEANER
+ * Fully integrated Vanilla JavaScript + HTML5 Canvas 2D Game Engine
+ */
+
+// --- AUDIO SYNTHESIS ENGINE ---
+class SoundManager {
+  constructor() {
+    this.ctx = null;
+    this.muted = false;
+    this.bgmPlaying = false;
+    this.nextNoteTime = 0;
+    this.bgmStep = 0;
+  }
+
+  init() {
+    if (!this.ctx) {
+      const AudioContext = window.AudioContext || window.webkitAudioContext;
+      this.ctx = new AudioContext();
+    }
+    if (this.ctx.state === 'suspended') {
+      this.ctx.resume();
+    }
+  }
+
+  toggleMute() {
+    this.muted = !this.muted;
+    return !this.muted;
+  }
+
+  // Firing sound: cartoon pressurized gas spray puff
+  playShoot() {
+    if (this.muted || !this.ctx) return;
+    const now = this.ctx.currentTime;
+
+    const bufferSize = this.ctx.sampleRate * 0.18;
+    const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) {
+      data[i] = Math.random() * 2 - 1;
+    }
+
+    const noise = this.ctx.createBufferSource();
+    noise.buffer = buffer;
+
+    const filter = this.ctx.createBiquadFilter();
+    filter.type = 'bandpass';
+    filter.frequency.setValueAtTime(1400, now);
+    filter.frequency.exponentialRampToValueAtTime(300, now + 0.18);
+    filter.Q.value = 3.0;
+
+    const gain = this.ctx.createGain();
+    gain.gain.setValueAtTime(0.55, now);
+    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.18);
+
+    noise.connect(filter);
+    filter.connect(gain);
+    gain.connect(this.ctx.destination);
+
+    noise.start(now);
+  }
+
+  // Empty magazine click
+  playEmpty() {
+    if (this.muted || !this.ctx) return;
+    const now = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(900, now);
+    osc.frequency.exponentialRampToValueAtTime(150, now + 0.05);
+
+    gain.gain.setValueAtTime(0.3, now);
+    gain.gain.linearRampToValueAtTime(0, now + 0.05);
+
+    osc.connect(gain);
+    gain.connect(this.ctx.destination);
+    osc.start(now);
+    osc.stop(now + 0.05);
+  }
+
+  // Reload sound
+  playReload() {
+    if (this.muted || !this.ctx) return;
+    const now = this.ctx.currentTime;
+
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(450, now);
+    osc.frequency.setValueAtTime(700, now + 0.25);
+    osc.frequency.setValueAtTime(1100, now + 0.45);
+
+    gain.gain.setValueAtTime(0.2, now);
+    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.55);
+
+    osc.connect(gain);
+    gain.connect(this.ctx.destination);
+    osc.start(now);
+    osc.stop(now + 0.55);
+  }
+
+  // Roach hit squeak/pop
+  playHit() {
+    if (this.muted || !this.ctx) return;
+    const now = this.ctx.currentTime;
+
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(320, now);
+    osc.frequency.exponentialRampToValueAtTime(1350, now + 0.09);
+    osc.frequency.exponentialRampToValueAtTime(200, now + 0.18);
+
+    gain.gain.setValueAtTime(0.28, now);
+    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.18);
+
+    osc.connect(gain);
+    gain.connect(this.ctx.destination);
+    osc.start(now);
+    osc.stop(now + 0.18);
+  }
+
+  // Room transition fanfare
+  playRoomClear() {
+    if (this.muted || !this.ctx) return;
+    const notes = [261.63, 329.63, 392.00, 523.25];
+    notes.forEach((freq, idx) => {
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      const now = this.ctx.currentTime + idx * 0.1;
+      osc.type = 'triangle';
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0.25, now);
+      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.25);
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.25);
+    });
+  }
+
+  // Victory Fanfare
+  playVictory() {
+    if (this.muted || !this.ctx) return;
+    const chords = [
+      [261.63, 329.63, 392.0],
+      [293.66, 369.99, 440.0],
+      [329.63, 415.30, 493.88],
+      [523.25, 659.25, 783.99]
+    ];
+    chords.forEach((chord, i) => {
+      const t = this.ctx.currentTime + i * 0.28;
+      chord.forEach(freq => {
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.value = freq;
+        gain.gain.setValueAtTime(0.18, t);
+        gain.gain.exponentialRampToValueAtTime(0.01, t + 0.5);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start(t);
+        osc.stop(t + 0.5);
+      });
+    });
+  }
+
+  // Background arcade synthesizer loop
+  updateBGM() {
+    if (this.muted || !this.ctx || !this.bgmPlaying) return;
+    const now = this.ctx.currentTime;
+    if (now >= this.nextNoteTime) {
+      const bassNotes = [110, 110, 130.81, 146.83, 110, 110, 164.81, 146.83];
+      const melodyNotes = [440, 0, 523.25, 587.33, 440, 659.25, 587.33, 523.25];
+      const noteFreq = bassNotes[this.bgmStep % bassNotes.length];
+      const leadFreq = melodyNotes[this.bgmStep % melodyNotes.length];
+
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(noteFreq, now);
+      gain.gain.setValueAtTime(0.08, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.17);
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.18);
+
+      if (leadFreq > 0) {
+        const leadOsc = this.ctx.createOscillator();
+        const leadGain = this.ctx.createGain();
+        leadOsc.type = 'triangle';
+        leadOsc.frequency.setValueAtTime(leadFreq, now);
+        leadGain.gain.setValueAtTime(0.04, now);
+        leadGain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+        leadOsc.connect(leadGain);
+        leadGain.connect(this.ctx.destination);
+        leadOsc.start(now);
+        leadOsc.stop(now + 0.16);
+      }
+
+      this.bgmStep++;
+      this.nextNoteTime = now + 0.22;
+    }
+  }
+
+  startBGM() {
+    this.bgmPlaying = true;
+    if (this.ctx) this.nextNoteTime = this.ctx.currentTime + 0.1;
+  }
+}
+
+// --- GAME STATE & CONSTANTS ---
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const sound = new SoundManager();
+
+const WIDTH = 960;
+const HEIGHT = 600;
+const MAX_AMMO = 20;
+const VICTORY_POINTS = 1000;
+const POINTS_PER_ROACH = 10;
+
+// Room definitions
+const ROOMS = [
+  { id: 'kitchen', name: 'Kitchen', targetKills: 12, speedMult: 1.0, maxConcurrent: 4 },
+  { id: 'living_room', name: 'Living Room', targetKills: 12, speedMult: 1.15, maxConcurrent: 5 },
+  { id: 'bathroom', name: 'Bathroom', targetKills: 12, speedMult: 1.3, maxConcurrent: 5 },
+  { id: 'bedroom', name: 'Bedroom', targetKills: 12, speedMult: 1.45, maxConcurrent: 6 },
+  { id: 'dining_room', name: 'Dining Room', targetKills: 13, speedMult: 1.6, maxConcurrent: 6 },
+  { id: 'laundry_room', name: 'Laundry Room', targetKills: 13, speedMult: 1.75, maxConcurrent: 7 },
+  { id: 'basement', name: 'Basement', targetKills: 14, speedMult: 1.9, maxConcurrent: 7 },
+  { id: 'garage', name: 'Garage', targetKills: 12, speedMult: 2.1, maxConcurrent: 8 }
+];
+
+let gameState = {
+  score: 0,
+  kills: 0,
+  ammo: MAX_AMMO,
+  roomIndex: 0,
+  roomKills: 0,
+  reloading: false,
+  reloadTimer: 0,
+  reloadDuration: 1.1,
+  isPaused: false,
+  isPlaying: false,
+  isVictory: false,
+
+  mouseX: WIDTH / 2,
+  mouseY: HEIGHT / 2,
+  gunX: WIDTH / 2,
+
+  recoilOffset: 0,
+  sprayFlashTimer: 0,
+  roomBannerTimer: 0,
+  roomBannerText: '',
+  roomBannerSub: ''
+};
+
+let roaches = [];
+let particles = [];
+let floatingTexts = [];
+
+// --- PROCEDURAL ROOM BACKGROUNDS ---
+const RoomRenderers = {
+  // 1. Kitchen
+  kitchen: function(c) {
+    const grad = c.createLinearGradient(0, 0, 0, 380);
+    grad.addColorStop(0, '#e8f0f2');
+    grad.addColorStop(1, '#c2d4d8');
+    c.fillStyle = grad;
+    c.fillRect(0, 0, WIDTH, 380);
+
+    c.strokeStyle = 'rgba(255,255,255,0.7)';
+    c.lineWidth = 1.5;
+    for (let y = 40; y < 280; y += 30) {
+      c.beginPath(); c.moveTo(0, y); c.lineTo(WIDTH, y); c.stroke();
+      const offset = (y / 30) % 2 === 0 ? 0 : 35;
+      for (let x = offset; x < WIDTH; x += 70) {
+        c.beginPath(); c.moveTo(x, y); c.lineTo(x, y + 30); c.stroke();
+      }
+    }
+
+    c.fillStyle = '#6c7a89';
+    c.fillRect(60, 20, 220, 110);
+    c.fillRect(680, 20, 220, 110);
+    c.fillStyle = '#95a5a6';
+    c.fillRect(70, 30, 95, 90); c.fillRect(175, 30, 95, 90);
+    c.fillRect(690, 30, 95, 90); c.fillRect(795, 30, 95, 90);
+    c.fillStyle = '#ffd166';
+    c.fillRect(155, 70, 5, 20); c.fillRect(180, 70, 5, 20);
+    c.fillRect(775, 70, 5, 20); c.fillRect(800, 70, 5, 20);
+
+    c.fillStyle = '#dfe6e9';
+    c.fillRect(350, 40, 150, 280);
+    c.fillStyle = '#b2bec3';
+    c.fillRect(350, 150, 150, 4);
+    c.fillStyle = '#636e72';
+    c.fillRect(360, 80, 8, 45);
+    c.fillRect(360, 170, 8, 65);
+    c.fillStyle = '#ff7675'; c.beginPath(); c.arc(430, 90, 8, 0, Math.PI*2); c.fill();
+    c.fillStyle = '#74b9ff'; c.fillRect(450, 105, 20, 25);
+    c.fillStyle = '#55efc4'; c.beginPath(); c.arc(400, 120, 10, 0, Math.PI*2); c.fill();
+
+    c.fillStyle = '#2d3436';
+    c.fillRect(0, 280, WIDTH, 40);
+    c.fillStyle = '#636e72';
+    c.fillRect(0, 320, WIDTH, 80);
+
+    c.fillStyle = '#222f3e';
+    c.fillRect(80, 220, 130, 60);
+    c.fillStyle = '#00d2d3';
+    c.fillRect(95, 230, 75, 40);
+
+    const tileSize = 50;
+    for (let y = 380; y < HEIGHT; y += 30) {
+      for (let x = 0; x < WIDTH; x += tileSize) {
+        c.fillStyle = ((Math.floor(x / tileSize) + Math.floor(y / 30)) % 2 === 0) ? '#f1f2f6' : '#2f3542';
+        c.fillRect(x, y, tileSize, 30);
+      }
+    }
+  },
+
+  // 2. Living Room
+  living_room: function(c) {
+    c.fillStyle = '#f8ede3';
+    c.fillRect(0, 0, WIDTH, 380);
+    c.fillStyle = '#eddcd2';
+    for (let x = 0; x < WIDTH; x += 40) {
+      c.fillRect(x, 0, 20, 380);
+    }
+
+    c.fillStyle = '#8d5b4c';
+    c.fillRect(180, 50, 160, 110);
+    c.fillStyle = '#70a1ff';
+    c.fillRect(190, 60, 140, 90);
+    c.fillStyle = '#fffa65';
+    c.beginPath(); c.arc(230, 90, 18, 0, Math.PI*2); c.fill();
+    c.fillStyle = '#2ed573';
+    c.beginPath(); c.moveTo(190, 150); c.lineTo(240, 105); c.lineTo(290, 150); c.fill();
+
+    c.fillStyle = '#fff'; c.beginPath(); c.arc(500, 70, 32, 0, Math.PI*2); c.fill();
+    c.lineWidth = 4; c.strokeStyle = '#2f3542'; c.stroke();
+    c.beginPath(); c.moveTo(500, 70); c.lineTo(500, 50); c.stroke();
+    c.beginPath(); c.moveTo(500, 70); c.lineTo(518, 70); c.stroke();
+
+    c.fillStyle = '#82ccdd';
+    c.fillRect(660, 40, 220, 170);
+    c.lineWidth = 6; c.strokeStyle = '#fff';
+    c.strokeRect(660, 40, 220, 170);
+    c.beginPath(); c.moveTo(770, 40); c.lineTo(770, 210); c.moveTo(660, 125); c.lineTo(880, 125); c.stroke();
+
+    c.fillStyle = '#e55039';
+    c.beginPath();
+    c.roundRect(140, 220, 440, 140, 20);
+    c.fill();
+    c.fillStyle = '#eb2f06';
+    c.fillRect(160, 270, 190, 80);
+    c.fillRect(370, 270, 190, 80);
+    c.fillStyle = '#f6b93b';
+    c.fillRect(150, 235, 50, 45);
+    c.fillRect(520, 235, 50, 45);
+
+    c.fillStyle = '#f1f2f6';
+    c.fillRect(0, 370, WIDTH, 16);
+    c.fillStyle = '#b8860b';
+    c.fillRect(0, 386, WIDTH, HEIGHT - 386);
+    c.strokeStyle = '#8b5a00'; c.lineWidth = 1.5;
+    for (let y = 386; y < HEIGHT; y += 35) {
+      c.beginPath(); c.moveTo(0, y); c.lineTo(WIDTH, y); c.stroke();
+    }
+  },
+
+  // 3. Bathroom
+  bathroom: function(c) {
+    c.fillStyle = '#1dd1a1';
+    c.fillRect(0, 0, WIDTH, 380);
+    c.strokeStyle = 'rgba(255,255,255,0.4)'; c.lineWidth = 1;
+    for (let y = 0; y < 380; y += 25) {
+      c.beginPath(); c.moveTo(0, y); c.lineTo(WIDTH, y); c.stroke();
+      for (let x = 0; x < WIDTH; x += 25) {
+        c.beginPath(); c.moveTo(x, y); c.lineTo(x, y + 25); c.stroke();
+      }
+    }
+
+    c.fillStyle = '#c8d6e5';
+    c.fillRect(360, 40, 240, 160);
+    c.lineWidth = 8; c.strokeStyle = '#8395a7';
+    c.strokeRect(360, 40, 240, 160);
+    c.fillStyle = 'rgba(255,255,255,0.4)';
+    c.beginPath(); c.moveTo(380, 45); c.lineTo(440, 45); c.lineTo(390, 195); c.lineTo(370, 195); c.fill();
+
+    c.fillStyle = '#ffffff';
+    c.beginPath(); c.roundRect(380, 210, 200, 60, [0, 0, 30, 30]); c.fill();
+    c.fillStyle = '#718093'; c.fillRect(470, 185, 20, 25);
+    c.fillStyle = '#a4b0be'; c.fillRect(460, 180, 40, 8);
+
+    c.fillStyle = '#ffffff';
+    c.beginPath(); c.roundRect(40, 190, 260, 150, [15, 15, 40, 40]); c.fill();
+    c.fillStyle = '#48dbfb';
+    c.fillRect(55, 210, 230, 70);
+    c.strokeStyle = '#a4b0be'; c.lineWidth = 6;
+    c.beginPath(); c.moveTo(70, 50); c.lineTo(70, 120); c.lineTo(120, 130); c.stroke();
+
+    c.fillStyle = '#10ac84';
+    c.fillRect(0, 370, WIDTH, HEIGHT - 370);
+    c.fillStyle = '#ee5253';
+    c.beginPath(); c.roundRect(390, 430, 180, 75, 15); c.fill();
+  },
+
+  // 4. Bedroom
+  bedroom: function(c) {
+    c.fillStyle = '#341f97';
+    c.fillRect(0, 0, WIDTH, 380);
+
+    c.fillStyle = '#ff9f43';
+    c.fillRect(120, 60, 120, 150);
+    c.fillStyle = '#ee5253';
+    c.beginPath(); c.arc(180, 120, 35, 0, Math.PI*2); c.fill();
+
+    c.fillStyle = '#0a3d62';
+    c.fillRect(680, 40, 190, 160);
+    c.fillStyle = '#ffeaa7';
+    c.beginPath(); c.arc(730, 90, 25, 0, Math.PI*2); c.fill();
+    c.fillStyle = '#ff7675';
+    c.fillRect(660, 30, 35, 180);
+    c.fillRect(855, 30, 35, 180);
+
+    c.fillStyle = '#576574';
+    c.fillRect(280, 170, 380, 80);
+    c.fillStyle = '#f8efba';
+    c.fillRect(300, 230, 340, 130);
+    c.fillStyle = '#0abde3';
+    c.fillRect(300, 270, 340, 90);
+    c.fillStyle = '#fff';
+    c.fillRect(320, 230, 120, 40);
+    c.fillRect(490, 230, 120, 40);
+
+    c.fillStyle = '#222f3e';
+    c.fillRect(0, 370, WIDTH, HEIGHT - 370);
+    c.fillStyle = '#5f27cd';
+    c.beginPath(); c.ellipse(WIDTH/2, 470, 300, 70, 0, 0, Math.PI*2); c.fill();
+  },
+
+  // 5. Dining Room
+  dining_room: function(c) {
+    c.fillStyle = '#5e1b2f';
+    c.fillRect(0, 0, WIDTH, 380);
+    c.fillStyle = '#3a101d';
+    c.fillRect(0, 240, WIDTH, 140);
+    c.strokeStyle = '#521729'; c.lineWidth = 4;
+    for (let x = 30; x < WIDTH; x += 110) {
+      c.strokeRect(x, 255, 80, 105);
+    }
+
+    c.strokeStyle = '#ffd700'; c.lineWidth = 3;
+    c.beginPath(); c.moveTo(WIDTH/2, 0); c.lineTo(WIDTH/2, 80); c.stroke();
+    c.fillStyle = '#ffd700';
+    c.beginPath(); c.arc(WIDTH/2, 85, 45, 0, Math.PI); c.fill();
+    c.fillStyle = '#fff9c4';
+    c.beginPath(); c.arc(WIDTH/2 - 35, 75, 10, 0, Math.PI*2); c.arc(WIDTH/2, 70, 12, 0, Math.PI*2); c.arc(WIDTH/2 + 35, 75, 10, 0, Math.PI*2); c.fill();
+
+    c.fillStyle = '#ffffff';
+    c.beginPath(); c.moveTo(180, 290); c.lineTo(780, 290); c.lineTo(840, 380); c.lineTo(120, 380); c.closePath(); c.fill();
+    c.fillStyle = '#784212';
+    c.beginPath(); c.arc(WIDTH/2, 310, 35, 0, Math.PI); c.fill();
+    c.fillStyle = '#e74c3c'; c.beginPath(); c.arc(WIDTH/2 - 12, 300, 12, 0, Math.PI*2); c.fill();
+    c.fillStyle = '#f1c40f'; c.beginPath(); c.arc(WIDTH/2 + 12, 298, 11, 0, Math.PI*2); c.fill();
+    c.fillStyle = '#2ecc71'; c.beginPath(); c.arc(WIDTH/2, 290, 10, 0, Math.PI*2); c.fill();
+
+    c.fillStyle = '#4a2810';
+    c.fillRect(0, 380, WIDTH, HEIGHT - 380);
+  },
+
+  // 6. Laundry Room
+  laundry_room: function(c) {
+    c.fillStyle = '#c7ecee';
+    c.fillRect(0, 0, WIDTH, 380);
+
+    c.fillStyle = '#95afc0';
+    c.fillRect(100, 100, 380, 15);
+    c.fillStyle = '#ff7979'; c.fillRect(130, 50, 30, 50);
+    c.fillStyle = '#303952'; c.fillRect(140, 42, 12, 8);
+    c.fillStyle = '#686de0'; c.fillRect(200, 45, 45, 55);
+    c.fillStyle = '#f9ca24'; c.fillRect(280, 60, 35, 40);
+
+    c.strokeStyle = '#535c68'; c.lineWidth = 2;
+    c.beginPath(); c.moveTo(500, 70); c.quadraticCurveTo(720, 110, 920, 70); c.stroke();
+    c.fillStyle = '#e056fd'; c.fillRect(580, 85, 30, 40);
+    c.fillStyle = '#22a6b3'; c.fillRect(660, 93, 40, 50);
+    c.fillStyle = '#f0932b'; c.fillRect(750, 90, 25, 35);
+
+    c.fillStyle = '#ffffff';
+    c.roundRect(140, 190, 180, 180, 10); c.fill();
+    c.fillStyle = '#576574'; c.beginPath(); c.arc(230, 280, 60, 0, Math.PI*2); c.fill();
+    c.fillStyle = '#48dbfb'; c.beginPath(); c.arc(230, 280, 46, 0, Math.PI*2); c.fill();
+
+    c.fillStyle = '#f1f2f6';
+    c.roundRect(360, 190, 180, 180, 10); c.fill();
+    c.fillStyle = '#576574'; c.beginPath(); c.arc(450, 280, 60, 0, Math.PI*2); c.fill();
+    c.fillStyle = '#ff9f43'; c.beginPath(); c.arc(450, 280, 46, 0, Math.PI*2); c.fill();
+
+    c.fillStyle = '#7ed6df';
+    c.fillRect(0, 370, WIDTH, HEIGHT - 370);
+  },
+
+  // 7. Basement
+  basement: function(c) {
+    c.fillStyle = '#434b54';
+    c.fillRect(0, 0, WIDTH, 380);
+
+    c.strokeStyle = '#323940'; c.lineWidth = 2;
+    for (let y = 0; y < 380; y += 30) {
+      c.beginPath(); c.moveTo(0, y); c.lineTo(WIDTH, y); c.stroke();
+      const off = (y / 30) % 2 === 0 ? 0 : 35;
+      for (let x = off; x < WIDTH; x += 70) {
+        c.beginPath(); c.moveTo(x, y); c.lineTo(x, y + 30); c.stroke();
+      }
+    }
+
+    c.fillStyle = '#b33939'; c.fillRect(0, 25, WIDTH, 16);
+    c.fillStyle = '#cd6133'; c.fillRect(0, 50, WIDTH, 12);
+    c.fillStyle = '#ffb142'; c.beginPath(); c.arc(480, 33, 16, 0, Math.PI*2); c.fill();
+
+    c.strokeStyle = '#1e272e'; c.lineWidth = 2;
+    c.beginPath(); c.moveTo(WIDTH/2, 0); c.lineTo(WIDTH/2, 130); c.stroke();
+    c.fillStyle = '#ffff76';
+    c.beginPath(); c.arc(WIDTH/2, 142, 14, 0, Math.PI*2); c.fill();
+
+    c.fillStyle = '#cd853f';
+    c.fillRect(100, 230, 120, 110);
+    c.fillRect(200, 200, 110, 140);
+    c.fillStyle = '#8b5a2b';
+    c.fillRect(100, 280, 120, 6);
+    c.fillRect(200, 260, 110, 6);
+
+    c.fillStyle = '#57606f';
+    c.beginPath(); c.roundRect(700, 120, 150, 230, 20); c.fill();
+    c.fillStyle = '#2f3542';
+    c.fillRect(725, 160, 40, 30);
+    c.fillStyle = '#ff4757';
+    c.beginPath(); c.arc(775, 290, 15, 0, Math.PI*2); c.fill();
+
+    c.fillStyle = '#2f3640';
+    c.fillRect(0, 370, WIDTH, HEIGHT - 370);
+    c.strokeStyle = '#1e272e'; c.lineWidth = 2;
+    c.beginPath(); c.moveTo(250, 420); c.lineTo(310, 460); c.lineTo(340, 450); c.stroke();
+    c.beginPath(); c.moveTo(600, 480); c.lineTo(650, 510); c.lineTo(700, 500); c.stroke();
+  },
+
+  // 8. Garage
+  garage: function(c) {
+    c.fillStyle = '#57606f';
+    c.fillRect(0, 0, WIDTH, 380);
+
+    c.fillStyle = '#ced6e0';
+    c.fillRect(440, 20, 480, 340);
+    c.strokeStyle = '#747d8c'; c.lineWidth = 4;
+    for (let y = 20; y <= 360; y += 85) {
+      c.beginPath(); c.moveTo(440, y); c.lineTo(920, y); c.stroke();
+    }
+
+    c.fillStyle = '#a4b0be';
+    c.fillRect(40, 40, 340, 180);
+    c.fillStyle = '#2f3542';
+    c.fillRect(80, 70, 14, 80);
+    c.beginPath(); c.arc(87, 65, 16, 0, Math.PI*2); c.fill();
+    c.fillRect(160, 60, 12, 90);
+    c.fillRect(140, 60, 52, 22);
+    c.beginPath(); c.moveTo(250, 70); c.lineTo(330, 120); c.lineTo(250, 130); c.fill();
+
+    c.fillStyle = '#b33939';
+    c.fillRect(40, 230, 340, 130);
+    c.fillStyle = '#2c2c54';
+    c.fillRect(30, 220, 360, 18);
+    c.fillStyle = '#800000';
+    c.fillRect(60, 250, 130, 40);
+    c.fillRect(210, 250, 130, 40);
+    c.fillRect(60, 305, 280, 40);
+
+    c.fillStyle = '#3d4451';
+    c.fillRect(0, 370, WIDTH, HEIGHT - 370);
+    c.fillStyle = 'rgba(20, 20, 25, 0.6)';
+    c.beginPath(); c.ellipse(650, 440, 70, 25, 0.2, 0, Math.PI*2); c.fill();
+    c.beginPath(); c.ellipse(250, 490, 45, 18, -0.1, 0, Math.PI*2); c.fill();
+  }
+};
+
+// --- COCKROACH CLASS ---
+class Roach {
+  constructor(speedMult) {
+    this.width = 46;
+    this.height = 30;
+    this.alive = true;
+    this.speedMult = speedMult || 1.0;
+
+    const spawnSide = Math.floor(Math.random() * 4);
+    if (spawnSide === 0) {
+      this.x = -30;
+      this.y = 100 + Math.random() * 450;
+      this.angle = 0;
+    } else if (spawnSide === 1) {
+      this.x = WIDTH + 30;
+      this.y = 100 + Math.random() * 450;
+      this.angle = Math.PI;
+    } else if (spawnSide === 2) {
+      this.x = 100 + Math.random() * (WIDTH - 200);
+      this.y = HEIGHT + 20;
+      this.angle = -Math.PI / 2;
+    } else {
+      this.x = 100 + Math.random() * (WIDTH - 200);
+      this.y = 200 + Math.random() * 150;
+      this.angle = Math.random() * Math.PI * 2;
+    }
+
+    this.baseSpeed = (70 + Math.random() * 60) * this.speedMult;
+    this.currentSpeed = this.baseSpeed;
+    this.legPhase = Math.random() * Math.PI * 2;
+    this.turnTimer = 0.5 + Math.random() * 1.5;
+    this.pauseTimer = 0;
+  }
+
+  update(dt) {
+    if (!this.alive) return;
+
+    this.turnTimer -= dt;
+    if (this.turnTimer <= 0) {
+      this.turnTimer = 1.0 + Math.random() * 2.0;
+
+      if (Math.random() < 0.25) {
+        this.pauseTimer = 0.4 + Math.random() * 0.7;
+      } else {
+        this.angle += (Math.random() - 0.5) * 1.8;
+      }
+    }
+
+    if (this.pauseTimer > 0) {
+      this.pauseTimer -= dt;
+      this.legPhase += dt * 4;
+      return;
+    }
+
+    if (this.x < 30) this.angle = 0;
+    if (this.x > WIDTH - 30) this.angle = Math.PI;
+    if (this.y < 70) this.angle = Math.PI / 2;
+    if (this.y > HEIGHT - 40) this.angle = -Math.PI / 2;
+
+    this.x += Math.cos(this.angle) * this.currentSpeed * dt;
+    this.y += Math.sin(this.angle) * this.currentSpeed * dt;
+    this.legPhase += dt * (this.currentSpeed / 5);
+  }
+
+  draw(c) {
+    if (!this.alive) return;
+
+    c.save();
+    c.translate(this.x, this.y);
+    c.rotate(this.angle);
+
+    c.fillStyle = 'rgba(0,0,0,0.25)';
+    c.beginPath();
+    c.ellipse(2, 6, 20, 11, 0, 0, Math.PI*2);
+    c.fill();
+
+    // Legs
+    c.strokeStyle = '#4a2511';
+    c.lineWidth = 2.2;
+    c.lineCap = 'round';
+    for (let i = -1; i <= 1; i++) {
+      const legOffset = Math.sin(this.legPhase + i * 1.5) * 6;
+      c.beginPath();
+      c.moveTo(i * 9, -5);
+      c.lineTo(i * 9 - 4, -16 + legOffset);
+      c.lineTo(i * 9 - 10, -22 + legOffset);
+      c.stroke();
+      c.beginPath();
+      c.moveTo(i * 9, 5);
+      c.lineTo(i * 9 + 4, 16 - legOffset);
+      c.lineTo(i * 9 + 10, 22 - legOffset);
+      c.stroke();
+    }
+
+    // Abdomen
+    c.fillStyle = '#653314';
+    c.beginPath();
+    c.ellipse(-3, 0, 17, 10, 0, 0, Math.PI * 2);
+    c.fill();
+    c.strokeStyle = '#3e1d09';
+    c.lineWidth = 1.2;
+    c.stroke();
+
+    c.strokeStyle = '#472109';
+    c.beginPath();
+    c.moveTo(-12, -7); c.lineTo(-12, 7);
+    c.moveTo(-6, -9); c.lineTo(-6, 9);
+    c.moveTo(1, -9); c.lineTo(1, 9);
+    c.stroke();
+
+    c.fillStyle = 'rgba(255,255,255,0.2)';
+    c.beginPath();
+    c.ellipse(-2, -3, 12, 3, -0.1, 0, Math.PI*2);
+    c.fill();
+
+    // Head
+    c.fillStyle = '#4a2511';
+    c.beginPath();
+    c.ellipse(15, 0, 7, 6, 0, 0, Math.PI * 2);
+    c.fill();
+
+    // Eyes
+    c.fillStyle = '#ffffff';
+    c.beginPath();
+    c.arc(17, -4, 3.5, 0, Math.PI * 2);
+    c.arc(17, 4, 3.5, 0, Math.PI * 2);
+    c.fill();
+    c.fillStyle = '#111';
+    c.beginPath();
+    c.arc(18, -4, 1.8, 0, Math.PI * 2);
+    c.arc(18, 4, 1.8, 0, Math.PI * 2);
+    c.fill();
+
+    // Antennae
+    const twitch = Math.sin(this.legPhase * 1.5) * 5;
+    c.strokeStyle = '#301608';
+    c.lineWidth = 1.5;
+    c.beginPath();
+    c.moveTo(20, -3);
+    c.quadraticCurveTo(32, -14 + twitch, 42, -18 + twitch);
+    c.moveTo(20, 3);
+    c.quadraticCurveTo(32, 14 - twitch, 42, 18 - twitch);
+    c.stroke();
+
+    c.restore();
+  }
+}
+
+// --- PARTICLES & FLOATING POINTS ---
+class Particle {
+  constructor(x, y, color, speed, size, life) {
+    this.x = x;
+    this.y = y;
+    this.color = color;
+    this.size = size;
+    this.life = life;
+    this.maxLife = life;
+    const a = Math.random() * Math.PI * 2;
+    const s = Math.random() * speed;
+    this.vx = Math.cos(a) * s;
+    this.vy = Math.sin(a) * s - 20;
+  }
+  update(dt) {
+    this.x += this.vx * dt;
+    this.y += this.vy * dt;
+    this.life -= dt;
+  }
+  draw(c) {
+    if (this.life <= 0) return;
+    c.save();
+    c.globalAlpha = Math.max(0, this.life / this.maxLife);
+    c.fillStyle = this.color;
+    c.beginPath();
+    c.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+    c.fill();
+    c.restore();
+  }
+}
+
+class FloatingScore {
+  constructor(x, y, text) {
+    this.x = x;
+    this.y = y;
+    this.text = text;
+    this.life = 1.8;
+    this.maxLife = 1.8;
+  }
+  update(dt) {
+    this.y -= 32 * dt;
+    this.life -= dt;
+  }
+  draw(c) {
+    if (this.life <= 0) return;
+    c.save();
+    const alpha = Math.min(1, this.life / 0.5);
+    c.globalAlpha = alpha;
+    c.font = '900 20px "Segoe UI", sans-serif';
+    c.fillStyle = '#ffd166';
+    c.strokeStyle = '#000';
+    c.lineWidth = 4;
+    c.strokeText(this.text, this.x - 30, this.y);
+    c.fillText(this.text, this.x - 30, this.y);
+    c.restore();
+  }
+}
+
+// --- FIRST-PERSON EXTERMINATOR RIFLE & HANDS ---
+function drawWeaponAndHands(c) {
+  gameState.gunX += (gameState.mouseX - gameState.gunX) * 0.18;
+  const clampedX = Math.max(220, Math.min(WIDTH - 220, gameState.gunX));
+  const baseY = HEIGHT - 20 + gameState.recoilOffset;
+
+  let reloadDrop = 0;
+  if (gameState.reloading) {
+    const progress = (gameState.reloadDuration - gameState.reloadTimer) / gameState.reloadDuration;
+    reloadDrop = Math.sin(progress * Math.PI) * 120;
+  }
+
+  const weaponY = baseY + reloadDrop;
+
+  c.save();
+  c.translate(clampedX, weaponY);
+
+  const angleTilt = (gameState.mouseX - clampedX) * 0.0008;
+  c.rotate(angleTilt);
+
+  // Forearms
+  c.fillStyle = '#f39c12';
+  c.beginPath();
+  c.moveTo(-160, 160);
+  c.lineTo(-90, -40);
+  c.lineTo(-40, -30);
+  c.lineTo(-90, 160);
+  c.closePath();
+  c.fill();
+  c.fillStyle = '#d68910';
+  c.fillRect(-115, 60, 45, 12);
+
+  c.fillStyle = '#f39c12';
+  c.beginPath();
+  c.moveTo(160, 160);
+  c.lineTo(90, -10);
+  c.lineTo(40, -5);
+  c.lineTo(90, 160);
+  c.closePath();
+  c.fill();
+  c.fillStyle = '#d68910';
+  c.fillRect(70, 70, 45, 12);
+
+  // Gloves
+  c.fillStyle = '#2c3e50';
+  c.beginPath();
+  c.roundRect(-98, -62, 50, 44, 10);
+  c.fill();
+
+  c.fillStyle = '#2c3e50';
+  c.beginPath();
+  c.roundRect(48, -32, 52, 48, 10);
+  c.fill();
+
+  // Rifle Body
+  c.fillStyle = '#34495e';
+  c.beginPath();
+  c.roundRect(-45, -70, 90, 110, 8);
+  c.fill();
+  c.fillStyle = '#1abc9c';
+  c.fillRect(-40, -50, 80, 20);
+
+  // Gauge
+  c.fillStyle = '#ecf0f1';
+  c.beginPath(); c.arc(0, -35, 16, 0, Math.PI * 2); c.fill();
+  c.strokeStyle = '#2c3e50'; c.lineWidth = 3; c.stroke();
+  c.strokeStyle = '#e74c3c'; c.lineWidth = 2;
+  c.beginPath(); c.moveTo(0, -35); c.lineTo(8, -42); c.stroke();
+
+  // Barrel
+  c.fillStyle = '#7f8c8d';
+  c.fillRect(-15, -175, 30, 115);
+  c.fillStyle = '#2c3e50';
+  c.fillRect(-18, -155, 36, 8);
+  c.fillRect(-18, -120, 36, 8);
+
+  // Nozzle Tip
+  c.fillStyle = '#f1c40f';
+  c.beginPath();
+  c.moveTo(-16, -175);
+  c.lineTo(16, -175);
+  c.lineTo(10, -195);
+  c.lineTo(-10, -195);
+  c.closePath();
+  c.fill();
+
+  // REAPER BUG SPRAY CANISTER
+  c.save();
+  c.translate(-4, -10);
+
+  c.fillStyle = '#1a252f';
+  c.fillRect(-26, -12, 52, 14);
+
+  const canGrad = c.createLinearGradient(-35, 0, 35, 0);
+  canGrad.addColorStop(0, '#2c3e50');
+  canGrad.addColorStop(0.5, '#4b6584');
+  canGrad.addColorStop(1, '#1e272e');
+  c.fillStyle = canGrad;
+  c.beginPath();
+  c.roundRect(-32, 2, 64, 88, [8, 8, 14, 14]);
+  c.fill();
+
+  // Canister Label
+  c.fillStyle = '#ffffff';
+  c.fillRect(-30, 24, 60, 44);
+
+  // "REAPER" Canister Brand
+  c.fillStyle = '#2d3436';
+  c.font = 'bold 9px "Segoe UI", sans-serif';
+  c.textAlign = 'center';
+  c.fillText('ROACH REAPER', 0, 38);
+  c.fillStyle = '#e74c3c';
+  c.font = 'bold 11px sans-serif';
+  c.fillText('MAX 20', 0, 52);
+  c.fillText('☠️', 0, 64);
+
+  c.restore();
+
+  // Muzzle Flash
+  if (gameState.sprayFlashTimer > 0) {
+    const flashAlpha = gameState.sprayFlashTimer / 0.14;
+    c.save();
+    c.globalAlpha = flashAlpha;
+
+    const sprayCone = c.createRadialGradient(0, -210, 5, 0, -260, 90);
+    sprayCone.addColorStop(0, 'rgba(46, 213, 115, 0.95)');
+    sprayCone.addColorStop(0.4, 'rgba(123, 237, 159, 0.8)');
+    sprayCone.addColorStop(1, 'rgba(46, 213, 115, 0)');
+
+    c.fillStyle = sprayCone;
+    c.beginPath();
+    c.moveTo(-10, -195);
+    c.lineTo(-80, -320);
+    c.lineTo(80, -320);
+    c.lineTo(10, -195);
+    c.closePath();
+    c.fill();
+
+    c.fillStyle = '#ffffff';
+    c.beginPath();
+    c.arc(0, -205, 14, 0, Math.PI * 2);
+    c.fill();
+    c.restore();
+  }
+
+  c.restore();
+}
+
+// --- HUD DISPLAY ---
+function drawHUD(c) {
+  c.fillStyle = 'rgba(15, 23, 42, 0.85)';
+  c.fillRect(0, 0, WIDTH, 54);
+  c.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+  c.lineWidth = 2;
+  c.beginPath(); c.moveTo(0, 54); c.lineTo(WIDTH, 54); c.stroke();
+
+  c.font = 'bold 17px "Segoe UI", monospace';
+  c.textBaseline = 'middle';
+  c.textAlign = 'left';
+
+  c.fillStyle = '#ffd166';
+  c.fillText(`SCORE: ${gameState.score}`, 20, 27);
+
+  c.fillStyle = '#06d6a0';
+  c.fillText(`REAPED: ${gameState.kills}/100`, 175, 27);
+
+  const curRoom = ROOMS[gameState.roomIndex];
+  c.fillStyle = '#118ab2';
+  c.fillText(`LVL ${gameState.roomIndex + 1}: ${curRoom.name.toUpperCase()}`, 350, 27);
+
+  c.textAlign = 'right';
+  c.fillStyle = gameState.ammo <= 3 ? '#ff4757' : '#ffffff';
+  c.fillText(`AMMO: ${gameState.ammo}/${MAX_AMMO}`, 720, 27);
+
+  for (let i = 0; i < MAX_AMMO; i++) {
+    const pipX = 730 + (i % 10) * 10;
+    const pipY = i < 10 ? 20 : 34;
+    c.fillStyle = i < gameState.ammo ? '#38ef7d' : 'rgba(255,255,255,0.2)';
+    c.fillRect(pipX, pipY, 6, 9);
+  }
+
+  c.textAlign = 'center';
+  if (gameState.reloading) {
+    c.fillStyle = '#ffd166';
+    c.font = 'bold 22px "Segoe UI", sans-serif';
+    c.fillText('RELOADING SPRAY CANISTER...', WIDTH / 2, 95);
+  } else if (gameState.ammo === 0) {
+    const flash = Math.floor(Date.now() / 250) % 2 === 0;
+    c.fillStyle = flash ? '#ff4757' : '#ffffff';
+    c.font = '900 24px "Segoe UI", sans-serif';
+    c.fillText('EMPTY! PRESS [R] TO RELOAD!', WIDTH / 2, 95);
+  }
+
+  if (gameState.roomBannerTimer > 0) {
+    const alpha = Math.min(1, gameState.roomBannerTimer / 0.5);
+    c.save();
+    c.globalAlpha = alpha;
+    c.fillStyle = 'rgba(0, 0, 0, 0.75)';
+    c.fillRect(0, HEIGHT / 2 - 60, WIDTH, 120);
+
+    c.fillStyle = '#06d6a0';
+    c.font = '900 36px "Segoe UI", sans-serif';
+    c.fillText(gameState.roomBannerText, WIDTH / 2, HEIGHT / 2 - 15);
+
+    c.fillStyle = '#ffd166';
+    c.font = 'bold 24px "Segoe UI", sans-serif';
+    c.fillText(gameState.roomBannerSub, WIDTH / 2, HEIGHT / 2 + 28);
+    c.restore();
+  }
+}
+
+// --- CROSSHAIR RETICLE ---
+function drawCrosshair(c) {
+  const x = gameState.mouseX;
+  const y = gameState.mouseY;
+
+  let hovering = false;
+  for (const r of roaches) {
+    if (r.alive && Math.hypot(r.x - x, r.y - y) < 35) {
+      hovering = true;
+      break;
+    }
+  }
+
+  c.save();
+  c.strokeStyle = hovering ? '#ff4757' : '#38ef7d';
+  c.lineWidth = 2.5;
+
+  c.beginPath();
+  c.arc(x, y, 18, 0, Math.PI * 2);
+  c.stroke();
+
+  c.beginPath();
+  c.moveTo(x - 26, y); c.lineTo(x - 12, y);
+  c.moveTo(x + 12, y); c.lineTo(x + 26, y);
+  c.moveTo(x, y - 26); c.lineTo(x, y - 12);
+  c.moveTo(x, y + 12); c.lineTo(x, y + 26);
+  c.stroke();
+
+  c.fillStyle = hovering ? '#ff4757' : '#ffffff';
+  c.beginPath();
+  c.arc(x, y, 3, 0, Math.PI * 2);
+  c.fill();
+  c.restore();
+}
+
+// --- GAME LOGIC ---
+function fireWeapon() {
+  if (!gameState.isPlaying || gameState.isPaused || gameState.isVictory) return;
+  if (gameState.reloading) return;
+
+  if (gameState.ammo <= 0) {
+    sound.playEmpty();
+    return;
+  }
+
+  gameState.ammo--;
+  sound.playShoot();
+
+  gameState.recoilOffset = 22;
+  gameState.sprayFlashTimer = 0.14;
+
+  for (let i = 0; i < 18; i++) {
+    const pColor = ['#2ed573', '#7bed9f', '#ffffff', '#25ccf7'][Math.floor(Math.random() * 4)];
+    particles.push(new Particle(gameState.mouseX, gameState.mouseY, pColor, 140, 3 + Math.random() * 4, 0.4));
+  }
+
+  let hitRoach = null;
+  let closestDist = 42;
+
+  for (const r of roaches) {
+    if (r.alive) {
+      const dist = Math.hypot(r.x - gameState.mouseX, r.y - gameState.mouseY);
+      if (dist < closestDist) {
+        closestDist = dist;
+        hitRoach = r;
+      }
+    }
+  }
+
+  if (hitRoach) {
+    eliminateRoach(hitRoach);
+  }
+}
+
+function reloadWeapon() {
+  if (!gameState.isPlaying || gameState.isPaused || gameState.isVictory) return;
+  if (gameState.reloading) return;
+  if (gameState.ammo === MAX_AMMO) return;
+
+  gameState.reloading = true;
+  gameState.reloadTimer = gameState.reloadDuration;
+  sound.playReload();
+}
+
+function eliminateRoach(r) {
+  r.alive = false;
+  gameState.score += POINTS_PER_ROACH;
+  gameState.kills++;
+  gameState.roomKills++;
+
+  sound.playHit();
+  floatingTexts.push(new FloatingScore(r.x, r.y, '+10 POINTS'));
+
+  for (let i = 0; i < 24; i++) {
+    const colors = ['#2ed573', '#ffd166', '#ffffff', '#70a1ff', '#eccc68'];
+    particles.push(new Particle(r.x, r.y, colors[Math.floor(Math.random() * colors.length)], 160, 4 + Math.random() * 5, 0.6));
+  }
+
+  if (gameState.score >= VICTORY_POINTS) {
+    triggerVictory();
+    return;
+  }
+
+  const curRoom = ROOMS[gameState.roomIndex];
+  if (gameState.roomKills >= curRoom.targetKills) {
+    advanceRoom();
+  }
+}
+
+function advanceRoom() {
+  gameState.roomKills = 0;
+  gameState.roomIndex = (gameState.roomIndex + 1) % ROOMS.length;
+  const nextRoom = ROOMS[gameState.roomIndex];
+
+  gameState.roomBannerTimer = 2.4;
+  gameState.roomBannerText = 'ROOM CLEARED!';
+  gameState.roomBannerSub = `ENTERING THE ${nextRoom.name.toUpperCase()}`;
+
+  sound.playRoomClear();
+  roaches = [];
+}
+
+function triggerVictory() {
+  gameState.score = VICTORY_POINTS;
+  gameState.isVictory = true;
+  gameState.isPlaying = false;
+  sound.playVictory();
+
+  document.getElementById('victory-screen').classList.remove('hidden');
+}
+
+function spawnRoaches(dt) {
+  if (!gameState.isPlaying || gameState.isVictory) return;
+
+  const curRoom = ROOMS[gameState.roomIndex];
+  const activeCount = roaches.filter(r => r.alive).length;
+  if (activeCount < curRoom.maxConcurrent) {
+    if (Math.random() < 0.05 + gameState.roomIndex * 0.01) {
+      roaches.push(new Roach(curRoom.speedMult));
+    }
+  }
+
+  roaches = roaches.filter(r => r.alive);
+}
+
+function startNewGame() {
+  gameState.score = 0;
+  gameState.kills = 0;
+  gameState.ammo = MAX_AMMO;
+  gameState.roomIndex = 0;
+  gameState.roomKills = 0;
+  gameState.reloading = false;
+  gameState.reloadTimer = 0;
+  gameState.isPaused = false;
+  gameState.isPlaying = true;
+  gameState.isVictory = false;
+  gameState.sprayFlashTimer = 0;
+  gameState.roomBannerTimer = 0;
+
+  roaches = [];
+  particles = [];
+  floatingTexts = [];
+
+  document.getElementById('start-screen').classList.add('hidden');
+  document.getElementById('victory-screen').classList.add('hidden');
+  document.getElementById('pause-screen').classList.add('hidden');
+
+  sound.init();
+  sound.startBGM();
+
+  for (let i = 0; i < 3; i++) {
+    roaches.push(new Roach(1.0));
+  }
+}
+
+// --- MAIN LOOP ---
+let lastTime = performance.now();
+
+function gameLoop(currentTime) {
+  const dt = Math.min((currentTime - lastTime) / 1000, 0.1);
+  lastTime = currentTime;
+
+  sound.updateBGM();
+
+  if (gameState.isPlaying && !gameState.isPaused) {
+    if (gameState.reloading) {
+      gameState.reloadTimer -= dt;
+      if (gameState.reloadTimer <= 0) {
+        gameState.reloading = false;
+        gameState.ammo = MAX_AMMO;
+      }
+    }
+
+    if (gameState.recoilOffset > 0) {
+      gameState.recoilOffset = Math.max(0, gameState.recoilOffset - dt * 140);
+    }
+    if (gameState.sprayFlashTimer > 0) {
+      gameState.sprayFlashTimer -= dt;
+    }
+    if (gameState.roomBannerTimer > 0) {
+      gameState.roomBannerTimer -= dt;
+    }
+
+    spawnRoaches(dt);
+    roaches.forEach(r => r.update(dt));
+
+    particles.forEach(p => p.update(dt));
+    particles = particles.filter(p => p.life > 0);
+
+    floatingTexts.forEach(ft => ft.update(dt));
+    floatingTexts = floatingTexts.filter(ft => ft.life > 0);
+  }
+
+  ctx.clearRect(0, 0, WIDTH, HEIGHT);
+
+  const currentRoomKey = ROOMS[gameState.roomIndex].id;
+  if (RoomRenderers[currentRoomKey]) {
+    RoomRenderers[currentRoomKey](ctx);
+  }
+
+  roaches.forEach(r => r.draw(ctx));
+  particles.forEach(p => p.draw(ctx));
+  floatingTexts.forEach(ft => ft.draw(ctx));
+
+  drawWeaponAndHands(ctx);
+  drawHUD(ctx);
+
+  if (gameState.isPlaying && !gameState.isPaused) {
+    drawCrosshair(ctx);
+  }
+
+  requestAnimationFrame(gameLoop);
+}
+
+// --- EVENT LISTENERS ---
+canvas.addEventListener('mousemove', (e) => {
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = WIDTH / rect.width;
+  const scaleY = HEIGHT / rect.height;
+  gameState.mouseX = (e.clientX - rect.left) * scaleX;
+  gameState.mouseY = (e.clientY - rect.top) * scaleY;
+});
+
+canvas.addEventListener('mousedown', (e) => {
+  if (e.button === 0) {
+    fireWeapon();
+  }
+});
+
+window.addEventListener('keydown', (e) => {
+  if (e.key === 'r' || e.key === 'R') {
+    reloadWeapon();
+  } else if (e.key === 'Escape' || e.key === 'p' || e.key === 'P') {
+    togglePause();
+  }
+});
+
+document.getElementById('play-btn').addEventListener('click', () => {
+  startNewGame();
+});
+
+document.getElementById('restart-btn').addEventListener('click', () => {
+  startNewGame();
+});
+
+document.getElementById('resume-btn').addEventListener('click', () => {
+  togglePause();
+});
+
+document.getElementById('pause-btn').addEventListener('click', () => {
+  togglePause();
+});
+
+document.getElementById('sound-btn').addEventListener('click', () => {
+  sound.init();
+  const isSoundOn = sound.toggleMute();
+  document.getElementById('sound-btn').textContent = isSoundOn ? '🔊 SOUND: ON' : '🔇 SOUND: OFF';
+});
+
+function togglePause() {
+  if (!gameState.isPlaying || gameState.isVictory) return;
+  gameState.isPaused = !gameState.isPaused;
+  const pauseScreen = document.getElementById('pause-screen');
+  if (gameState.isPaused) {
+    pauseScreen.classList.remove('hidden');
+    document.getElementById('pause-btn').textContent = '▶️ RESUME';
+  } else {
+    pauseScreen.classList.add('hidden');
+    document.getElementById('pause-btn').textContent = '⏸️ PAUSE';
+  }
+}
+
+requestAnimationFrame(gameLoop);
+</script>
+</body>
+</html>
